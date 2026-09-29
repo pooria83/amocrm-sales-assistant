@@ -1,6 +1,7 @@
 import { AssistantBadges } from '@/components/assistant/AssistantBadges'
 import { CustomerReplyCard } from '@/components/assistant/CustomerReplyCard'
 import { ErrorState } from '@/components/assistant/ErrorState'
+import { FallbackBanner } from '@/components/assistant/FallbackBanner'
 import { InternalHintsCard } from '@/components/assistant/InternalHintsCard'
 import { KbMatchList } from '@/components/assistant/KbMatchList'
 import { LoadingState } from '@/components/assistant/LoadingState'
@@ -50,6 +51,7 @@ export function AssistantPanel() {
 
       {status === 'done' && result && (
         <>
+          {result.validation.fallback_used && <FallbackBanner grounded={result.grounded} />}
           <SourceChips ids={result.customer_reply.kb_refs} titles={titles} />
           <CustomerReplyCard
             reply={result.customer_reply}

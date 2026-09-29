@@ -132,3 +132,20 @@ def test_history_capped_at_last_five() -> None:
     assert "msg 5" in user
     assert "msg 9" in user
     assert user.count("customer: msg") == 5
+
+
+def test_system_prompt_forbids_off_topic_numbers_and_kb_mentions() -> None:
+    """Anti-overselling contract (run 20260929-155851 findings): the reply must
+    not volunteer other prices/limits, and must never mention the internal KB."""
+    system = _s1_messages()[0]["content"]
+    assert "Answer only what the customer asked" in system
+    assert "Never tell the customer where the answer came from" in system
+    assert "as our knowledge base says" in system  # named as a forbidden phrase
+
+
+def test_system_prompt_forbids_signatures_and_placeholders() -> None:
+    # {{name}} in the template renders as {name} after .format()
+    system = _s1_messages()[0]["content"]
+    assert "never write [Your Company Name], {name}, [company]" in system
+    assert "lorem ipsum" in system
+    assert "the reply ends with the answer itself" in system

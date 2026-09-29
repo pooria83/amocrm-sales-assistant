@@ -22,12 +22,16 @@ def test_short_message_is_ambiguous() -> None:
 
 
 def test_inherits_conversation_language() -> None:
-    history = [
+    ru_history = [
         {"role": "customer", "text": "Здравствуйте! Мы сейчас на тарифе Старт."},
         {"role": "manager", "text": "Добрый день, Алексей!"},
     ]
-    assert detect_language("Price?", history, ui_lang="en") == ("en", "conversation")
-    assert detect_language("Telegram?", history, ui_lang="en") == ("en", "conversation")
+    en_history = [
+        {"role": "customer", "text": "Hello, we are evaluating TeamFlow."},
+        {"role": "manager", "text": "Hi!"},
+    ]
+    assert detect_language("Price?", en_history, ui_lang="ru") == ("en", "conversation")
+    assert detect_language("Telegram?", ru_history, ui_lang="en") == ("ru", "conversation")
 
 
 def test_uses_last_detected_customer_language() -> None:

@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from backend.kb import get_kb
 from backend.models import DealContext
@@ -73,8 +73,8 @@ class Reason(BaseModel):
 
 class LlmOutput(BaseModel):
     customer_reply: str
-    upsell_reasons: list[Reason] = Field(default_factory=list)
-    cross_sell_reasons: list[Reason] = Field(default_factory=list)
+    upsell_reasons: list[Reason]
+    cross_sell_reasons: list[Reason]
 
 
 def build_payload(messages: list[dict[str, str]], model: str) -> dict[str, Any]:

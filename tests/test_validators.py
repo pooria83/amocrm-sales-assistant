@@ -22,7 +22,12 @@ def good_output() -> LlmOutput:
                 id="addon-onboarding",
                 reason="Клиент на пробном периоде.",
                 talking_point="Предложите помощь с настройкой.",
-            )
+            ),
+            Reason(
+                id="addon-analytics",
+                reason="Нужны отчёты.",
+                talking_point="Покажите отчёты по менеджерам.",
+            ),
         ],
     )
 
@@ -59,7 +64,7 @@ def test_enforce_candidates_accepts_exact_match() -> None:
     cleaned, problems = enforce_candidates(good_output(), CANDIDATES)
     assert problems == []
     assert [r.id for r in cleaned.upsell_reasons] == ["plan-business"]
-    assert [r.id for r in cleaned.cross_sell_reasons] == ["addon-onboarding"]
+    assert [r.id for r in cleaned.cross_sell_reasons] == ["addon-onboarding", "addon-analytics"]
 
 
 def test_enforce_candidates_drops_unknown_ids() -> None:
@@ -68,7 +73,7 @@ def test_enforce_candidates_drops_unknown_ids() -> None:
     output.cross_sell_reasons.append(Reason(id="addon-priority-support", reason="x", talking_point="y"))
     cleaned, problems = enforce_candidates(output, CANDIDATES)
     assert [r.id for r in cleaned.upsell_reasons] == ["plan-business"]
-    assert [r.id for r in cleaned.cross_sell_reasons] == ["addon-onboarding"]
+    assert [r.id for r in cleaned.cross_sell_reasons] == ["addon-onboarding", "addon-analytics"]
     assert any("plan-enterprise" in p for p in problems)
     assert any("addon-priority-support" in p for p in problems)
 

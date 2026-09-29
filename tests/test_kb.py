@@ -37,6 +37,56 @@ def test_integrations_and_addons_entries() -> None:
     assert by_id["addon-priority-support"].facts["response_hours"] == 1
 
 
+SPEC_ENTRY_IDS = [
+    "plan-start",
+    "plan-business",
+    "plan-enterprise",
+    "limit-seats",
+    "billing-cycles",
+    "trial",
+    "invoice-legal-entity",
+    "cancel-policy",
+    "refund-policy",
+    "int-telegram",
+    "int-whatsapp",
+    "int-1c",
+    "int-gsheets",
+    "faq-api",
+    "addon-analytics",
+    "addon-priority-support",
+    "addon-onboarding",
+    "security-data",
+    "obj-too-expensive",
+    "obj-need-to-think",
+    "obj-competitor-cheaper",
+]
+
+
+def test_complete_inventory_matches_spec() -> None:
+    entries = load_kb()
+    assert sorted(e.id for e in entries) == sorted(SPEC_ENTRY_IDS)
+
+
+def test_spec_relations() -> None:
+    by_id = {e.id: e for e in load_kb()}
+    assert by_id["plan-business"].cross_sell == ["addon-analytics", "addon-onboarding"]
+    assert by_id["plan-enterprise"].cross_sell == ["addon-priority-support"]
+    assert by_id["obj-too-expensive"].cross_sell == ["addon-onboarding"]
+    assert by_id["obj-too-expensive"].facts == {
+        "discount_annual_percent": 20,
+        "trial_days": 14,
+    }
+    assert by_id["billing-cycles"].facts == {"discount_annual_percent": 20}
+    assert by_id["refund-policy"].facts == {"refund_days": 14}
+
+
+def test_all_entries_bilingual_and_slug_ids() -> None:
+    for entry in load_kb():
+        assert entry.title.ru and entry.title.en
+        assert entry.text.ru and entry.text.en
+        assert entry.keywords.ru and entry.keywords.en
+
+
 def test_duplicate_ids_rejected(tmp_path) -> None:
     entry = {
         "id": "plan-start",

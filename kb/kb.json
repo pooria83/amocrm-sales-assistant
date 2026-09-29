@@ -92,7 +92,10 @@
       "upsell_to": [
         "plan-enterprise"
       ],
-      "cross_sell": [],
+      "cross_sell": [
+        "addon-analytics",
+        "addon-onboarding"
+      ],
       "requires": null,
       "trigger_hints": []
     },
@@ -135,7 +138,9 @@
         "uptime_percent": 99.9
       },
       "upsell_to": [],
-      "cross_sell": [],
+      "cross_sell": [
+        "addon-priority-support"
+      ],
       "requires": null,
       "trigger_hints": []
     },
@@ -576,6 +581,230 @@
           "encryption",
           "russia",
           "data centres"
+        ]
+      },
+      "facts": {},
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "invoice-legal-entity",
+      "type": "faq",
+      "title": {
+        "ru": "Счёт для юридического лица",
+        "en": "Invoice for a legal entity"
+      },
+      "text": {
+        "ru": "Выставляем счёт и закрывающие документы для юридических лиц, оплата банковским переводом.",
+        "en": "We issue an invoice and closing documents for legal entities; payment by bank transfer."
+      },
+      "keywords": {
+        "ru": [
+          "счёт",
+          "счет",
+          "юридическое",
+          "лицо",
+          "документы",
+          "оплата",
+          "перевод",
+          "nds",
+          "ндс",
+          "акт"
+        ],
+        "en": [
+          "invoice",
+          "legal entity",
+          "documents",
+          "bank transfer",
+          "payment",
+          "vat"
+        ]
+      },
+      "facts": {},
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "cancel-policy",
+      "type": "faq",
+      "title": {
+        "ru": "Отмена подписки",
+        "en": "Cancellation policy"
+      },
+      "text": {
+        "ru": "Подписку можно отменить в любой момент; доступ сохраняется до конца оплаченного периода.",
+        "en": "You can cancel the subscription at any time; access remains until the end of the paid period."
+      },
+      "keywords": {
+        "ru": [
+          "отмена",
+          "отписка",
+          "подписка",
+          "прекратить",
+          "закрыть",
+          "доступ",
+          "период"
+        ],
+        "en": [
+          "cancel",
+          "cancellation",
+          "subscription",
+          "stop",
+          "access",
+          "period"
+        ]
+      },
+      "facts": {},
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "refund-policy",
+      "type": "faq",
+      "title": {
+        "ru": "Возврат средств",
+        "en": "Refund policy"
+      },
+      "text": {
+        "ru": "Возврат возможен в течение 14 дней с момента первой оплаты.",
+        "en": "A refund is available within 14 days of the first payment."
+      },
+      "keywords": {
+        "ru": [
+          "возврат",
+          "деньги",
+          "средства",
+          "вернуть",
+          "оплата",
+          "дни"
+        ],
+        "en": [
+          "refund",
+          "money",
+          "return",
+          "payment",
+          "days"
+        ]
+      },
+      "facts": {
+        "refund_days": 14
+      },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "obj-too-expensive",
+      "type": "objection",
+      "title": {
+        "ru": "Возражение: дорого",
+        "en": "Objection: too expensive"
+      },
+      "text": {
+        "ru": "Ответ на возражение о цене: годовая оплата даёт скидку 20%, есть пробный период 14 дней, цена указана за активного пользователя. Не давите — предложите факты.",
+        "en": "Response to a price objection: annual billing gives a 20% discount, there is a 14-day trial, and the price is per active user. Don't push — offer the facts."
+      },
+      "keywords": {
+        "ru": [
+          "дорого",
+          "дороже",
+          "дороговато",
+          "цена",
+          "скидка",
+          "бюджет",
+          "возражение",
+          "не можем"
+        ],
+        "en": [
+          "expensive",
+          "too much",
+          "price",
+          "discount",
+          "budget",
+          "objection",
+          "cheaper"
+        ]
+      },
+      "facts": {
+        "discount_annual_percent": 20,
+        "trial_days": 14
+      },
+      "upsell_to": [],
+      "cross_sell": [
+        "addon-onboarding"
+      ],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "obj-need-to-think",
+      "type": "objection",
+      "title": {
+        "ru": "Возражение: нужно подумать",
+        "en": "Objection: need to think"
+      },
+      "text": {
+        "ru": "Предложите пробный период 14 дней и договоритесь о дате обратной связи, без давления.",
+        "en": "Offer the 14-day trial and agree on a follow-up date, without pressure."
+      },
+      "keywords": {
+        "ru": [
+          "подумать",
+          "обдумать",
+          "возражение",
+          "время",
+          "решить",
+          "срок"
+        ],
+        "en": [
+          "think",
+          "consider",
+          "objection",
+          "time",
+          "decide"
+        ]
+      },
+      "facts": {
+        "trial_days": 14
+      },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "obj-competitor-cheaper",
+      "type": "objection",
+      "title": {
+        "ru": "Возражение: у конкурента дешевле",
+        "en": "Objection: competitor is cheaper"
+      },
+      "text": {
+        "ru": "Сравнивайте общую ценность, а не прайс-лист; не говорите плохо о конкурентах; спросите, какие функции важнее всего.",
+        "en": "Compare total value, not list price; never disparage competitors; ask which features matter most."
+      },
+      "keywords": {
+        "ru": [
+          "конкурент",
+          "дешевле",
+          "сравнение",
+          "другой",
+          "сервис",
+          "возражение"
+        ],
+        "en": [
+          "competitor",
+          "cheaper",
+          "compare",
+          "another service",
+          "objection"
         ]
       },
       "facts": {},

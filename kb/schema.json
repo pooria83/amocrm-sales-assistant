@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TeamFlow knowledge base",
+  "type": "object",
+  "required": ["entries"],
+  "additionalProperties": false,
+  "properties": {
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "bilingual": {
+      "type": "object",
+      "required": ["ru", "en"],
+      "additionalProperties": false,
+      "properties": {
+        "ru": { "type": "string", "minLength": 1 },
+        "en": { "type": "string", "minLength": 1 }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["id", "type", "title", "text", "keywords", "facts"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "type": {
+          "enum": ["plan", "limit", "integration", "addon", "objection", "faq"]
+        },
+        "title": { "$ref": "#/$defs/bilingual" },
+        "text": { "$ref": "#/$defs/bilingual" },
+        "keywords": {
+          "type": "object",
+          "required": ["ru", "en"],
+          "additionalProperties": false,
+          "properties": {
+            "ru": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "en": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          }
+        },
+        "facts": {
+          "type": "object",
+          "description": "Typed numeric facts. Every key must carry its unit in the key name (rub, percent, users, days, hours) — the numeric guardrail derives allowed (value, unit) pairs from these keys.",
+          "additionalProperties": { "type": "number" }
+        },
+        "upsell_to": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "cross_sell": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "requires": {
+          "type": ["string", "null"],
+          "description": "Minimum plan id needed for this entry's feature; null = available on all plans."
+        },
+        "trigger_hints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        }
+      }
+    }
+  }
+}

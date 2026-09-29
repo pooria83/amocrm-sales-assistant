@@ -14,6 +14,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mcp<2",
     "playwright>=1.63.0",
     "pytest>=8.3",
     "pyyaml>=6.0.3",

@@ -38,27 +38,6 @@ EN_STOPWORDS = frozenset(
     """.split()
 )
 
-# Brand/tech tokens are excluded from language detection and kept as-is in tokens
-# so "Подключите Telegram" stays Russian (CONTEXT §4a).
-BRAND_TOKENS = frozenset(
-    {
-        "telegram",
-        "whatsapp",
-        "1c",
-        "crm",
-        "google",
-        "gsheets",
-        "api",
-        "sso",
-        "sla",
-        "ios",
-        "android",
-        "rest",
-        "teamflow",
-        "ok",
-    }
-)
-
 _PUNCT_TABLE = str.maketrans("", "", string.punctuation + "«»„“”…—–·")
 # Normalise "1с" ↔ "1c": Cyrillic "с" directly next to a digit becomes Latin "c".
 _CYRILLIC_C_RE = re.compile(r"(?<=\d)с|с(?=\d)")

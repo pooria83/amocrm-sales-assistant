@@ -8,7 +8,7 @@
         "en": "Start plan"
       },
       "text": {
-        "ru": "Тариф «Старт»: 990 ₽ за пользователя в месяц, до 5 пользователей. Включает общую входящую (shared inbox), воронку сделок и интеграцию с Telegram.",
+        "ru": "Тариф «Старт»: 990 ₽ за пользователя в месяц, до 5 пользователей. Включает общий ящик обращений, воронку сделок и интеграцию с мессенджером Телеграм.",
         "en": "The Start plan: 990 RUB per user per month, up to 5 users. It includes a shared inbox, a deal pipeline and Telegram integration."
       },
       "keywords": {
@@ -107,8 +107,8 @@
         "en": "Enterprise plan"
       },
       "text": {
-        "ru": "Тариф «Энтерпрайз» — для команд от 50 пользователей, цена рассчитывается индивидуально. Включает SSO, персонального менеджера и SLA на доступность 99,9%.",
-        "en": "The Enterprise plan is for teams of 50+ users; the price is quoted on request. It includes SSO, a dedicated manager and a 99.9% uptime SLA."
+        "ru": "Тариф «Энтерпрайз» — для команд свыше 50 пользователей, цена рассчитывается индивидуально. Включает SSO, персонального менеджера и SLA на доступность 99,9%.",
+        "en": "The Enterprise plan is for teams of over 50 users; the price is quoted on request. It includes SSO, a dedicated manager and a 99.9% uptime SLA."
       },
       "keywords": {
         "ru": [
@@ -445,8 +445,8 @@
         "en": "Advanced Analytics"
       },
       "text": {
-        "ru": "Дополнение «Расширенная аналитика» — 4 900 ₽ в месяц за аккаунт. Отчёты по менеджерам и воронка конверсий. Доступно на тарифе «Бизнес» и выше.",
-        "en": "The Advanced Analytics add-on costs 4,900 RUB per month per account. Manager-level reports and funnel conversion. Available on the Business plan and above."
+        "ru": "Дополнение «Расширенная аналитика» — 4 900 ₽ в месяц за аккаунт. Отчёты по менеджерам и воронка конверсий — только здесь. В стоимость тарифов не входит; доступно на тарифе «Бизнес» и выше.",
+        "en": "The Advanced Analytics add-on costs 4,900 RUB per month per account. Manager-level reports and funnel conversion come only with this add-on and are not included in plan prices. It is available on the Business plan and above."
       },
       "keywords": {
         "ru": [

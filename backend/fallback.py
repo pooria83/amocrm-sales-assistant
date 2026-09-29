@@ -50,6 +50,45 @@ def validation_failed_reply(customer_lang: str, contact: str = "") -> str:
     )
 
 
+def _rub(value: int, lang: str) -> str:
+    """1990 → «1 990» (ru) / «1,990» (en) — same digits the KB stores."""
+    text = f"{value:,}".replace(",", " ") if lang == "ru" else f"{value:,}"
+    return text
+
+
+def pricing_fallback_reply(lang: str, contact: str = "") -> str:
+    """Ungrounded pricing question (Task A): facts-only plan list, no LLM.
+
+    Built exclusively from plan KB facts (prices, seat limits), so the
+    numeric guardrail passes by construction; check_numbers() in the tests
+    proves it. Anything the KB does not price ("Enterprise") is explicitly
+    deferred instead of guessed.
+    """
+    from backend.kb import get_kb  # local import: kb must not depend on fallback
+
+    plans = {e.id: e for e in get_kb() if e.type == "plan"}
+    start = plans["plan-start"].facts
+    business = plans["plan-business"].facts
+    if lang == "ru":
+        return (
+            f"{_greeting('ru', contact)} Тарифы TeamFlow: "
+            f"«Старт» — {_rub(int(start['price_rub_per_user_month']), 'ru')} ₽ за "
+            f"пользователя в месяц (до {start['max_users']} пользователей), "
+            f"«Бизнес» — {_rub(int(business['price_rub_per_user_month']), 'ru')} ₽ за "
+            f"пользователя в месяц (до {business['max_users']} пользователей), "
+            "«Энтерпрайз» — цена рассчитывается индивидуально. "
+            "Подскажите, какой тариф вам интересен?"
+        )
+    return (
+        f"{_greeting('en', contact)} TeamFlow plans: "
+        f"Start — {_rub(int(start['price_rub_per_user_month']), 'en')} RUB per user "
+        f"per month (up to {start['max_users']} users), "
+        f"Business — {_rub(int(business['price_rub_per_user_month']), 'en')} RUB per "
+        f"user per month (up to {business['max_users']} users), "
+        "Enterprise — priced on request. Which plan are you interested in?"
+    )
+
+
 # Templated reasons from rule names (§18) — used when the LLM could not
 # phrase them. The onboarding wording follows the §15 phrasing guard:
 # never "it's expensive → buy another paid thing".

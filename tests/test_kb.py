@@ -160,3 +160,40 @@ def test_kb_entry_unit_rule_in_model() -> None:
                 "facts": {"discount": 20},
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# KB wording regressions (review of run 20260929-175559, STEP 5): facts are
+# unchanged, the phrasing must be unambiguous in both languages.
+# ---------------------------------------------------------------------------
+
+
+def test_addon_analytics_reports_are_addon_only() -> None:
+    by_id = {e.id: e for e in load_kb()}
+    ru = by_id["addon-analytics"].text.ru
+    en = by_id["addon-analytics"].text.en
+    # manager-level reports exist ONLY in the paid add-on ...
+    assert "только" in ru, ru
+    assert "only" in en, en
+    # ... and are NOT included in the plan price
+    assert "не входит" in ru, ru
+    assert "not included" in en, en
+    # facts unchanged
+    assert by_id["addon-analytics"].facts == {"price_rub_per_month": 4900}
+
+
+def test_plan_enterprise_uses_over_50_wording() -> None:
+    by_id = {e.id: e for e in load_kb()}
+    assert "свыше 50" in by_id["plan-enterprise"].text.ru
+    assert "от 50" not in by_id["plan-enterprise"].text.ru
+    assert "over 50" in by_id["plan-enterprise"].text.en
+    assert by_id["plan-enterprise"].facts == {"min_users": 50, "uptime_percent": 99.9}
+
+
+def test_plan_start_ru_text_has_no_english_gloss() -> None:
+    import re
+
+    ru = next(e for e in load_kb() if e.id == "plan-start").text.ru
+    assert not re.search(r"[A-Za-z]", ru), ru
+    assert "общий ящик" in ru
+    assert "990" in ru and "5" in ru

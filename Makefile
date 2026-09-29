@@ -1,4 +1,4 @@
-.PHONY: up down logs warmup test lint eval demo demo-setup demo-test mcp
+.PHONY: up down logs warmup test lint eval demo demo-setup demo-test mcp verify
 
 up:
 	docker compose up --build -d
@@ -36,3 +36,9 @@ demo-test:
 # 100-case MCP evaluation; needs the app (make up) and a warm model (make warmup)
 mcp:
 	uv run python mcp/run_harness.py
+
+# Everything that can run offline (no Ollama, no Docker): ruff, frontend lint,
+# pytest, frontend build, retrieval/language eval. Fails on the first error.
+verify: lint test
+	npm --prefix frontend run build
+	uv run python eval/run_eval.py

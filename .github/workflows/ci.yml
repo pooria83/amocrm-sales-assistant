@@ -23,6 +23,7 @@ jobs:
           enable-cache: true
       - run: uv sync --frozen
       - run: uv run ruff check .
+      - run: uv run python eval/check_scripts.py
       - run: uv run pytest
       # Retrieval eval doubles as the BM25 threshold calibration gate (§8):
       # exits 1 if grounded accuracy < 100%.

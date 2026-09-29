@@ -1,4 +1,4 @@
-.PHONY: up down logs warmup test lint eval demo demo-setup demo-test mcp verify
+.PHONY: up down logs warmup test lint eval demo demo-setup demo-test mcp script-check verify
 
 up:
 	docker compose up --build -d
@@ -20,6 +20,10 @@ lint:
 	uv run ruff check .
 	npm --prefix frontend run lint
 
+# STEP 7 hygiene: no CJK / mixed-script words in tracked non-Python files
+script-check:
+	uv run python eval/check_scripts.py
+
 eval:
 	uv run python eval/run_eval.py
 
@@ -37,8 +41,8 @@ demo-test:
 mcp:
 	uv run python mcp/run_harness.py
 
-# Everything that can run offline (no Ollama, no Docker): ruff, frontend lint,
-# pytest, frontend build, retrieval/language eval. Fails on the first error.
-verify: lint test
+# Everything that can run offline (no Ollama, no Docker): ruff, script
+# hygiene, pytest, frontend lint+build, retrieval/language eval.
+verify: lint script-check test
 	npm --prefix frontend run build
 	uv run python eval/run_eval.py

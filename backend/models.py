@@ -6,6 +6,9 @@ from pydantic import BaseModel, Field
 
 Lang = Literal["ru", "en"]
 LangSource = Literal["message", "conversation", "ui_default"]
+Intent = Literal[
+    "pricing", "objection", "integration", "limits", "reporting", "support", "other"
+]
 
 
 class HistoryMessage(BaseModel):
@@ -97,6 +100,7 @@ class ValidationOut(BaseModel):
 class AssistResponse(BaseModel):
     detected_lang: Lang
     grounded: bool
+    intent: Intent  # metadata for the UI badge (CONTEXT §5)
     customer_reply: CustomerReplyOut
     internal_sales_hints: InternalSalesHintsOut
     retrieval: RetrievalOut

@@ -50,6 +50,7 @@ def test_ungrounded_falls_back_without_llm(monkeypatch) -> None:
     data = post_assist(monkeypatch, S4_MSG, deal={"plan": "none", "stage": "new"})
 
     assert data["grounded"] is False
+    assert data["intent"] == "other"
     assert data["validation"]["fallback_used"] is True
     assert data["validation"]["model"] == ""
     assert "уточню детали у команды" in data["customer_reply"]["text"]
@@ -72,6 +73,7 @@ def test_grounded_success_dual_output(monkeypatch) -> None:
 
     assert data["grounded"] is True
     assert data["detected_lang"] == "ru"
+    assert data["intent"] == "limits"
     assert data["customer_reply"]["text"] == S1_REPLY
     assert data["customer_reply"]["lang"] == "ru"
     assert data["customer_reply"]["kb_refs"]  # all top matches are above threshold

@@ -90,6 +90,7 @@ export interface Validation {
 export interface AssistResponse {
   detected_lang: Lang
   grounded: boolean
+  intent: Intent
   customer_reply: CustomerReply
   internal_sales_hints: InternalSalesHints
   retrieval: { matches: Match[]; threshold: number }

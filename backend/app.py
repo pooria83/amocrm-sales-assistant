@@ -193,6 +193,8 @@ def assist(req: AssistRequest) -> AssistResponse:
         matches=[_match_out(m, req.ui_lang) for m in matches], threshold=threshold
     )
 
+    intent = detect_intent(req.message)
+
     def elapsed() -> int:
         return int((time.monotonic() - started) * 1000)
 
@@ -200,6 +202,7 @@ def assist(req: AssistRequest) -> AssistResponse:
     if not grounded:
         return AssistResponse(
             detected_lang=lang,
+            intent=intent,
             grounded=False,
             customer_reply=CustomerReplyOut(
                 text=no_match_reply(lang, deal.contact), lang=lang, kb_refs=[]
@@ -214,7 +217,6 @@ def assist(req: AssistRequest) -> AssistResponse:
             ),
         )
 
-    intent = detect_intent(req.message)
     candidates = find_candidates(matches, intent, deal, req.message)
     kb_refs = [m.entry.id for m in matches if m.score >= threshold]
 
@@ -286,6 +288,7 @@ def assist(req: AssistRequest) -> AssistResponse:
         }
         return AssistResponse(
             detected_lang=lang,
+            intent=intent,
             grounded=True,
             customer_reply=CustomerReplyOut(
                 text=final_output.customer_reply, lang=lang, kb_refs=kb_refs
@@ -309,6 +312,7 @@ def assist(req: AssistRequest) -> AssistResponse:
         validation.errors = attempt_errors
     return AssistResponse(
         detected_lang=lang,
+        intent=intent,
         grounded=True,
         customer_reply=CustomerReplyOut(
             text=validation_failed_reply(lang, deal.contact), lang=lang, kb_refs=kb_refs

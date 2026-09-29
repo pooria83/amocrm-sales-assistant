@@ -32,3 +32,16 @@ class RetrieveResponse(BaseModel):
     matches: list[MatchOut]
     threshold: float
     grounded: bool
+
+
+class DealContext(BaseModel):
+    """Deal card fields that feed the rule engine (CONTEXT §13)."""
+
+    contact: str = ""
+    company: str = ""
+    channel: str = "telegram"
+    plan: Literal["start", "business", "enterprise", "none"] = "none"
+    seats_used: int = 0
+    seat_limit: int = 0
+    addons_owned: list[str] = Field(default_factory=list)
+    stage: Literal["trial", "negotiation", "client", "new"] = "new"

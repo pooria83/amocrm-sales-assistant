@@ -175,7 +175,10 @@
           "next plan"
         ]
       },
-      "facts": {},
+      "facts": {
+        "max_users_start": 5,
+        "max_users_business": 50
+      },
       "upsell_to": [
         "plan-business"
       ],

@@ -1,9 +1,15 @@
-"""RU/EN tokenizer with Snowball stemming (CONTEXT §16)."""
+"""RU/EN tokenizer with Snowball stemming and BM25 retrieval (CONTEXT §16)."""
 
+import os
 import re
 import string
+from dataclasses import dataclass
+from functools import lru_cache
 
 import snowballstemmer
+from rank_bm25 import BM25Okapi
+
+from backend.kb import KbEntry, get_kb
 
 RU_STOPWORDS = frozenset(
     """
@@ -84,3 +90,76 @@ def tokenize(text: str) -> list[str]:
         else:
             tokens.append(token)
     return tokens
+
+
+DEFAULT_K1 = 1.5
+DEFAULT_B = 0.75
+DEFAULT_TOP_K = 3
+DEFAULT_THRESHOLD = 3.0
+
+
+def get_threshold() -> float:
+    """Grounding threshold; calibrated on eval/cases.yaml (CONTEXT §16)."""
+    return float(os.getenv("RETRIEVAL_THRESHOLD", str(DEFAULT_THRESHOLD)))
+
+
+def index_text(entry: KbEntry) -> str:
+    """Both languages are indexed so an EN query can match RU content and vice versa.
+
+    Titles are counted twice so the entry name outweighs body-word overlap
+    (e.g. a question about "the Start plan" should rank plan-start above
+    limit-seats, which shares the same generic words).
+    """
+    title = f"{entry.title.ru} {entry.title.en}"
+    parts = [title, title, entry.text.ru, entry.text.en]
+    parts += entry.keywords.ru + entry.keywords.en
+    return " ".join(parts)
+
+
+@dataclass(frozen=True)
+class Match:
+    entry: KbEntry
+    score: float
+    matched_terms: list[str]
+
+
+class Retriever:
+    """Single retrieval service shared by /api/retrieve and /api/assist (CONTEXT §4a)."""
+
+    def __init__(self, entries: tuple[KbEntry, ...]):
+        self.entries = entries
+        self._docs = [tokenize(index_text(e)) for e in entries]
+        self._bm25 = BM25Okapi(self._docs, k1=DEFAULT_K1, b=DEFAULT_B)
+
+    def search(self, message: str, top_k: int = DEFAULT_TOP_K) -> list[Match]:
+        query_tokens = tokenize(message)
+        if not query_tokens or not self.entries:
+            return []
+        scores = self._bm25.get_scores(query_tokens)
+        ranked = sorted(
+            ((i, float(s)) for i, s in enumerate(scores) if s > 0),
+            key=lambda pair: pair[1],
+            reverse=True,
+        )[:top_k]
+
+        matches: list[Match] = []
+        for index, score in ranked:
+            doc_tokens = self._docs[index]
+            seen: list[str] = []
+            for token in query_tokens:
+                if token in doc_tokens and token not in seen:
+                    seen.append(token)
+            matches.append(Match(entry=self.entries[index], score=round(score, 2), matched_terms=seen[:8]))
+        return matches
+
+    def retrieve(self, message: str, top_k: int = DEFAULT_TOP_K) -> tuple[list[Match], float, bool]:
+        """Returns (matches, threshold, grounded). Grounded iff top score ≥ threshold."""
+        threshold = get_threshold()
+        matches = self.search(message, top_k=top_k)
+        grounded = bool(matches) and matches[0].score >= threshold
+        return matches, threshold, grounded
+
+
+@lru_cache(maxsize=1)
+def get_retriever() -> Retriever:
+    return Retriever(get_kb())

@@ -191,7 +191,9 @@ def test_numeric_trap_is_rejected_then_falls_back(monkeypatch) -> None:
 
     assert data["validation"]["fallback_used"] is True
     assert data["validation"]["retries"] == 1
-    assert data["validation"]["numbers_ok"] is False
+    # the echoing sentence is stripped deterministically and what survived it
+    # ("Конечно!") is too short to answer — length_ok fails → template
+    assert data["validation"]["numbers_ok"] is True
     # the trap number never reaches the customer reply
     assert "90" not in data["customer_reply"]["text"]
 
@@ -288,7 +290,9 @@ def test_unparsable_json_then_valid_output_succeeds(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_placeholder_signoff_retried_then_fixed(monkeypatch) -> None:
+def test_placeholder_signoff_stripped_deterministically(monkeypatch) -> None:
+    """A bracketed sign-off placeholder is cleaned before validation, so the
+    single retry is not burned on it (MCP run 20260929-213144, ru21)."""
     enterprise_reason = {
         "id": "plan-enterprise",
         "reason": "Клиент упомянул 60 сотрудников и SSO.",
@@ -316,7 +320,132 @@ def test_placeholder_signoff_retried_then_fixed(monkeypatch) -> None:
     data = post_assist(monkeypatch, "Для нашей команды в 60 человек нужен SSO?")
 
     assert data["validation"]["fallback_used"] is False
-    assert data["validation"]["retries"] == 1
+    assert data["validation"]["retries"] == 0
     assert data["validation"]["no_leakage"] is True
     assert "[Your Company Name]" not in data["customer_reply"]["text"]
-    assert data["customer_reply"]["text"].endswith("«Энтерпрайз».")
+    # cleaned first attempt is what the customer sees
+    assert data["customer_reply"]["text"] == "Тариф «Энтерпрайз» подойдёт для 60 человек."
+
+
+# ---------------------------------------------------------------------------
+# Review defects (run 20260929-175559): Chinese garbage, manager referrals
+# and unallowed plan pitches must fail validation, retry once, and never
+# reach the customer.
+# ---------------------------------------------------------------------------
+
+RU31_CHINESE_REPLY = (
+    "Здравствуйте! Мы понимаем, что вам нужно время на принятие решения. "
+    "Предлагаю воспользоваться пробным периодом на 14 дней, чтобы оценить все "
+    "функции тарифа «Бизнес». Дату обратной связи我们可以继续这部分，但以俄语完成。"
+    "以下是完整的回复：——客户回复部分——客户回复部分已经完成。接下来是内部建议部分。"
+    "——内部建议部分——"
+)
+
+RU01_REFERRAL_REPLY = (
+    "Добрый день, Алексей! На тарифе «Старт» можно подключить до 5 пользователей. "
+    "Если вам понадобится больше пользователей, вы можете обратиться к нашему "
+    "менеджеру для перехода на тариф «Бизнес»."
+)
+
+RU22_ENTERPRISE_PITCH = (
+    "Тариф «Старт» стоит 990 ₽ за пользователя в месяц. Для команд от 50 "
+    "пользователей рассмотрите тариф «Энтерпрайз», цена рассчитывается индивидуально."
+)
+
+
+def test_chinese_reply_retried_then_falls_back(monkeypatch) -> None:
+    outputs = [
+        make_generate(RU31_CHINESE_REPLY)([]),
+        make_generate(RU31_CHINESE_REPLY)([]),
+    ]
+    attempts = []
+
+    def generate(messages):
+        attempts.append(messages)
+        return outputs.pop(0)
+
+    monkeypatch.setattr("backend.app.generate", generate)
+    data = post_assist(monkeypatch, "Мне нужно подумать", deal={"plan": "business", "stage": "trial"})
+
+    assert len(attempts) == 2
+    assert data["validation"]["fallback_used"] is True
+    assert data["validation"]["retries"] == 1
+    assert data["validation"]["script_ok"] is False  # last attempt's failure recorded
+    # the template reply never contains CJK or template artifacts
+    reply = data["customer_reply"]["text"]
+    assert not any(ord(ch) > 0x2E80 for ch in reply)
+    assert "客户" not in reply and "——" not in reply
+    # the retry reminder names the script problem
+    assert any("script" in m["content"] for m in attempts[1])
+
+
+def test_manager_referral_retried_then_succeeds(monkeypatch) -> None:
+    outputs = [
+        make_generate(RU01_REFERRAL_REPLY, upsell=["plan-business"])([]),
+        make_generate(
+            "Здравствуйте, Алексей! На тарифе «Старт» можно подключить до 5 пользователей.",
+            upsell=["plan-business"],
+        )([]),
+    ]
+    monkeypatch.setattr("backend.app.generate", lambda messages: outputs.pop(0))
+
+    data = post_assist(
+        monkeypatch,
+        "Сколько пользователей можно подключить на тарифе Старт?",
+        deal={"contact": "Алексей", "plan": "start", "seats_used": 5, "seat_limit": 5},
+    )
+
+    assert data["validation"]["fallback_used"] is False
+    assert data["validation"]["retries"] == 1
+    assert data["validation"]["role_ok"] is True
+    reply = data["customer_reply"]["text"]
+    assert "менеджер" not in reply
+    assert "5 пользователей" in reply
+
+
+def test_unallowed_enterprise_pitch_retried_then_dropped(monkeypatch) -> None:
+    outputs = [
+        make_generate(RU22_ENTERPRISE_PITCH)([]),
+        make_generate("Тариф «Старт» стоит 990 ₽ за пользователя в месяц.")([]),
+    ]
+    monkeypatch.setattr("backend.app.generate", lambda messages: outputs.pop(0))
+
+    data = post_assist(monkeypatch, "Сколько стоят тарифы у вас?")
+
+    assert data["validation"]["fallback_used"] is False
+    assert data["validation"]["retries"] == 1
+    assert data["validation"]["no_leakage"] is True
+    assert "Энтерпрайз" not in data["customer_reply"]["text"]
+
+
+def test_overlong_reply_falls_back(monkeypatch) -> None:
+    long_reply = "Здравствуйте! " + "Подробный ответ о тарифах и функциях. " * 14
+    assert len(long_reply) > 450
+    outputs = [make_generate(long_reply)([]), make_generate(long_reply)([])]
+
+    def generate(messages):
+        return outputs.pop(0)
+
+    monkeypatch.setattr("backend.app.generate", generate)
+    data = post_assist(monkeypatch, "Сколько пользователей можно подключить на тарифе Старт?")
+
+    assert data["validation"]["fallback_used"] is True
+    assert data["validation"]["retries"] == 1
+    assert len(data["customer_reply"]["text"]) <= 450
+
+
+def test_success_reports_script_and_role_ok(monkeypatch) -> None:
+    monkeypatch.setattr("backend.app.generate", make_generate(S1_REPLY, upsell=["plan-business"]))
+    data = post_assist(
+        monkeypatch,
+        S1_MSG,
+        deal={"contact": "Алексей", "plan": "start", "seats_used": 5, "seat_limit": 5},
+    )
+    v = data["validation"]
+    assert v["script_ok"] is True
+    assert v["role_ok"] is True
+    # per-stage timings from STEP 1 of the latency review
+    assert v["retrieve_ms"] >= 0
+    assert v["prompt_ms"] >= 0
+    assert v["llm_ms"] and v["llm_ms"][0] >= 0
+    assert v["validate_ms"] >= 0

@@ -96,6 +96,13 @@ class ValidationOut(BaseModel):
     fallback_used: bool
     model: str
     latency_ms: int
+    # STEP 2/3 regression guards + per-stage timings (latency review).
+    script_ok: bool = False
+    role_ok: bool = False
+    retrieve_ms: int = 0
+    prompt_ms: int = 0
+    llm_ms: list[int] = Field(default_factory=list)
+    validate_ms: int = 0
 
 
 class AssistResponse(BaseModel):

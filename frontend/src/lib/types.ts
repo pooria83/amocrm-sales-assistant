@@ -82,10 +82,16 @@ export interface Validation {
   language_ok: boolean
   no_leakage: boolean
   schema_ok: boolean
+  script_ok: boolean
+  role_ok: boolean
   retries: number
   fallback_used: boolean
   model: string
   latency_ms: number
+  retrieve_ms: number
+  prompt_ms: number
+  llm_ms: number[]
+  validate_ms: number
 }
 
 export interface AssistResponse {

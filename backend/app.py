@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 from pathlib import Path
@@ -9,6 +10,7 @@ from fastapi import FastAPI, HTTPException
 from backend.fallback import (
     no_match_note,
     no_match_reply,
+    pricing_fallback_reply,
     templated_reason,
     validation_failed_reply,
 )
@@ -41,16 +43,27 @@ from backend.validators import (
     check_language,
     check_leakage,
     check_length,
+    check_manager_referral,
     check_numbers,
+    check_output_script,
     check_plan_capacity,
+    check_script,
     enforce_candidates,
     find_bad_claim,
+    inapplicable_plans,
     parse_output,
+    strip_foreign_percent_sentences,
     strip_percent_denial,
+    strip_signoff,
 )
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
 KB_PATH = Path(__file__).resolve().parent.parent / "kb" / "kb.json"
+
+# Emit backend/llm.py usage logs (prompt_eval_count/eval_count/load_duration)
+# and LLM failures to stdout so `docker compose logs backend` shows them.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AmoCRM Sales Assistant", version="1.0.0")
 
@@ -116,11 +129,68 @@ def retrieve(req: RetrieveRequest) -> RetrieveResponse:
 # /api/assist — full dual-output orchestration (CONTEXT §13, §4a)
 # ---------------------------------------------------------------------------
 
-def _with_reminder(messages: list[dict[str, str]], problems: list[str]) -> list[dict[str, str]]:
+def _with_reminder(
+    messages: list[dict[str, str]],
+    problems: list[str],
+    lang: str = "ru",
+    prev_reply: str = "",
+) -> list[dict[str, str]]:
+    """Retry prompt: raw problems + explicit, imperative fixes for the
+    failure classes the model kept repeating in MCP run 20260929-202325
+    (referral phrases, sign-off placeholders, stray CJK)."""
+    joined = "\n".join(problems)
+    fixes: list[str] = []
+    if "role_ok" in joined:
+        fixes.append(
+            "Referral removed: you ARE the manager — rewrite in first person "
+            "(«Я…») with zero mentions of contacting a manager."
+        )
+    if "placeholder" in joined or "Your Name" in joined:
+        fixes.append(
+            "No placeholders or sign-offs: delete [Your Name], [Your Company "
+            "Name], «С уважением, …» — end with the answer itself."
+        )
+    if "script_ok" in joined:
+        fixes.append(
+            "Script: rewrite customer_reply using ONLY the customer's "
+            "language alphabet — remove every foreign (CJK) character."
+        )
+    if "language_ok" in joined:
+        fixes.append(
+            f"Language: the customer wrote in {lang.upper()} — translate the "
+            f"ENTIRE customer_reply into {lang}, every sentence, no RU text."
+        )
+    if "numbers_ok" in joined:
+        fixes.append(
+            "Numbers: quote only values present in <kb> or <deal>, each with "
+            "its unit — drop every other number, then state our real <kb> "
+            "terms explicitly (do not evade with «я уточню»)."
+        )
+    if "upgrade pitch" in joined or "add-on content attributed" in joined:
+        fixes.append(
+            "Titles: delete the sentence offering another plan/add-on, or name "
+            "the add-on explicitly — upgrades belong to internal hints only."
+        )
+    if "length_ok" in joined:
+        fixes.append("Length: shorten to 3 sentences (≤450 characters).")
+    prev_block = ""
+    if prev_reply:
+        # Show what failed so the model PATCHES it instead of regenerating
+        # from scratch (MCP run 20260929-213144: retries lost the 1-hour
+        # fact, the API mention, or flipped language).
+        prev_block = (
+            "Previous customer_reply (failed validation):\n<previous_reply>"
+            + prev_reply
+            + "</previous_reply>\nFix ONLY the listed problems — keep every "
+            "other sentence, fact and number from it.\n"
+        )
     reminder = (
-        "Your previous reply failed validation:\n- "
+        prev_block
+        + "Your previous reply failed validation:\n- "
         + "\n- ".join(problems[:6])
-        + "\nFix these issues and return only the corrected JSON object."
+        + "\nRequired fixes:\n"
+        + "\n".join(f"- {f}" for f in fixes)
+        + "\nReturn ONLY the corrected JSON object with a clean customer_reply."
     )
     return messages + [{"role": "user", "content": reminder}]
 
@@ -159,7 +229,9 @@ def _hint_items(
 
 
 def _validation_out(
-    base: Validation, *, retries: int, fallback_used: bool, model: str, latency_ms: int
+    base: Validation, *, retries: int, fallback_used: bool, model: str, latency_ms: int,
+    retrieve_ms: int = 0, prompt_ms: int = 0, llm_ms: list[int] | None = None,
+    validate_ms: int = 0,
 ) -> ValidationOut:
     return ValidationOut(
         numbers_ok=base.numbers_ok,
@@ -167,10 +239,16 @@ def _validation_out(
         language_ok=base.language_ok,
         no_leakage=base.no_leakage,
         schema_ok=base.schema_ok,
+        script_ok=base.script_ok,
+        role_ok=base.role_ok,
         retries=retries,
         fallback_used=fallback_used,
         model=model,
         latency_ms=latency_ms,
+        retrieve_ms=retrieve_ms,
+        prompt_ms=prompt_ms,
+        llm_ms=llm_ms or [],
+        validate_ms=validate_ms,
     )
 
 
@@ -178,7 +256,8 @@ def _template_validation() -> Validation:
     """Templates pass every check by construction (§18)."""
     return Validation(
         schema_ok=True, candidates_ok=True, language_ok=True, numbers_ok=True,
-        capacity_ok=True, no_leakage=True, length_ok=True,
+        capacity_ok=True, script_ok=True, role_ok=True, no_leakage=True,
+        length_ok=True,
     )
 
 
@@ -189,28 +268,49 @@ def assist(req: AssistRequest) -> AssistResponse:
     deal = req.deal
     lang, _ = detect_language(req.message, history, req.ui_lang)
 
+    t0 = time.monotonic()
     try:
         matches, threshold, grounded = get_retriever().retrieve(req.message)
     except Exception as exc:
         raise HTTPException(status_code=503, detail="kb_unavailable") from exc
+    retrieve_ms = int((time.monotonic() - t0) * 1000)
 
     retrieval = RetrievalOut(
         matches=[_match_out(m, req.ui_lang) for m in matches], threshold=threshold
     )
 
     intent = detect_intent(req.message)
+    prompt_ms = 0
+    llm_ms: list[int] = []
+    validate_ms = 0
 
     def elapsed() -> int:
         return int((time.monotonic() - started) * 1000)
 
     # Ungrounded: skip rule engine and LLM entirely, honest template (§4a, §18).
     if not grounded:
+        reply_text = no_match_reply(lang, deal.contact)
+        # Task A: a pricing question without a KB match still gets the plan
+        # prices — from KB facts only, verified by the numeric guardrail.
+        if intent == "pricing":
+            candidate_text = pricing_fallback_reply(lang, deal.contact)
+            plan_matches = [
+                Match(entry=e, score=0.0, matched_terms=[])
+                for e in get_kb()
+                if e.type == "plan"
+            ]
+            numbers_ok, _claims = check_numbers(
+                candidate_text, matches=plan_matches, deal=deal,
+                customer_message=req.message,
+            )
+            if numbers_ok and not check_script(candidate_text):
+                reply_text = candidate_text
         return AssistResponse(
             detected_lang=lang,
             intent=intent,
             grounded=False,
             customer_reply=CustomerReplyOut(
-                text=no_match_reply(lang, deal.contact), lang=lang, kb_refs=[]
+                text=reply_text, lang=lang, kb_refs=[]
             ),
             internal_sales_hints=InternalSalesHintsOut(
                 lang=req.ui_lang, upsell=[], cross_sell=[], notes=no_match_note(req.ui_lang)
@@ -218,57 +318,118 @@ def assist(req: AssistRequest) -> AssistResponse:
             retrieval=retrieval,
             validation=_validation_out(
                 _template_validation(), retries=0, fallback_used=True, model="",
-                latency_ms=elapsed(),
+                latency_ms=elapsed(), retrieve_ms=retrieve_ms,
             ),
         )
 
     candidates = find_candidates(matches, intent, deal, req.message)
     kb_refs = [m.entry.id for m in matches if m.score >= threshold]
 
+    # Task B: capacity mismatch — the smallest plan that actually fits the
+    # requested headcount is appended to the <kb> passages so the model can
+    # answer with its facts (score 0: it is NOT a retrieval match, so kb_refs
+    # and the retrieval panel stay unchanged).
+    prompt_matches = list(matches)
+    capacity, inapplicable = inapplicable_plans(req.message)
+    if inapplicable and capacity is not None:
+        have = {m.entry.id for m in prompt_matches}
+
+        def _tier_key(entry):
+            max_users = entry.facts.get("max_users")
+            if isinstance(max_users, int | float):
+                return (0, float(max_users))
+            return (1, 0.0)
+
+        fitting = [
+            e
+            for e in get_kb()
+            if e.type == "plan"
+            and e.id not in have
+            and (
+                not isinstance(e.facts.get("max_users"), int | float)
+                or e.facts["max_users"] >= capacity
+            )
+        ]
+        if fitting:
+            prompt_matches = [
+                *prompt_matches,
+                Match(entry=min(fitting, key=_tier_key), score=0.0, matched_terms=["capacity"]),
+            ]
+
+    t0 = time.monotonic()
     messages = build_messages(
         message=req.message,
         history=history,
-        matches=matches,
+        matches=prompt_matches,
         candidates=candidates,
         deal=deal,
         customer_lang=lang,
         ui_lang=req.ui_lang,
     )
+    prompt_ms = int((time.monotonic() - t0) * 1000)
 
     final_output: LlmOutput | None = None
     validation = Validation()
     attempt_errors: list[str] = []
+    prev_reply = ""
     model_used = ""
     retries = 0
 
     for attempt in range(2):
         if attempt > 0:
             retries = 1
-            messages = _with_reminder(messages, attempt_errors)
+            messages = _with_reminder(messages, attempt_errors, lang, prev_reply)
+        t0 = time.monotonic()
         try:
             parsed, model_used = generate(messages)
         except LlmUnavailable as exc:
+            llm_ms.append(int((time.monotonic() - t0) * 1000))
+            logger.warning("llm_unavailable attempt=%d: %s", attempt, exc)
             attempt_errors = [f"llm_unavailable: {exc}"]
             break
         except LlmUnparsable as exc:
             # Not valid JSON → same path as a schema failure: one retry, then
             # the templated fallback (§17). Without this the exception escaped
             # as an unhandled HTTP 500.
+            llm_ms.append(int((time.monotonic() - t0) * 1000))
+            logger.warning(
+                "assist unparsable attempt=%d message=%r: %s",
+                attempt, req.message[:80], str(exc)[:200],
+            )
             attempt_errors = [f"schema_ok failed: {exc}"]
             continue
+        llm_ms.append(int((time.monotonic() - t0) * 1000))
 
+        t0 = time.monotonic()
         output = parse_output(parsed)
         if output is None:
             attempt_errors = ["schema_ok failed: response did not match the JSON shape"]
+            validate_ms += int((time.monotonic() - t0) * 1000)
             continue
 
-        cleaned, candidate_problems = enforce_candidates(output, candidates)
-        cleaned.customer_reply = strip_percent_denial(cleaned.customer_reply)
+        cleaned, candidate_problems = enforce_candidates(
+            output, candidates, ui_lang=req.ui_lang
+        )
+        cleaned.customer_reply = strip_signoff(
+            strip_percent_denial(cleaned.customer_reply)
+        )
+        cleaned.customer_reply = strip_foreign_percent_sentences(
+            cleaned.customer_reply,
+            matches=prompt_matches,
+            deal=deal,
+            customer_message=req.message,
+        )
         numbers_ok, _claims = check_numbers(
-            cleaned.customer_reply, matches=matches, deal=deal, customer_message=req.message
+            cleaned.customer_reply, matches=prompt_matches, deal=deal,
+            customer_message=req.message,
         )
         lang_ok = check_language(cleaned.customer_reply, lang)
-        leaks = check_leakage(cleaned, candidates)
+        script_problems = check_output_script(cleaned)
+        role_problems = check_manager_referral(cleaned.customer_reply)
+        leaks = check_leakage(
+            cleaned, candidates, message=req.message, matches=matches,
+            threshold=threshold, deal_plan=deal.plan,
+        )
         length_ok = check_length(cleaned.customer_reply)
         capacity_problems = check_plan_capacity(cleaned.customer_reply, req.message)
 
@@ -278,7 +439,7 @@ def assist(req: AssistRequest) -> AssistResponse:
         if not numbers_ok:
             bad = find_bad_claim(
                 cleaned.customer_reply,
-                matches=matches,
+                matches=prompt_matches,
                 deal=deal,
                 customer_message=req.message,
             )
@@ -289,9 +450,11 @@ def assist(req: AssistRequest) -> AssistResponse:
                 "totals, and always attach a unit (%, ₽, users, days, hours)" + detail
             )
         problems += capacity_problems
+        problems += script_problems
+        problems += role_problems
         problems += leaks
         if not length_ok:
-            problems.append("length_ok failed: reply empty or over 600 chars")
+            problems.append("length_ok failed: reply empty or over 450 chars")
 
         validation = Validation(
             schema_ok=True,
@@ -299,14 +462,22 @@ def assist(req: AssistRequest) -> AssistResponse:
             language_ok=lang_ok,
             numbers_ok=numbers_ok,
             capacity_ok=not capacity_problems,
+            script_ok=not script_problems,
+            role_ok=not role_problems,
             no_leakage=not leaks,
             length_ok=length_ok,
             errors=problems,
         )
+        validate_ms += int((time.monotonic() - t0) * 1000)
         if not problems:
             final_output = cleaned
             break
         attempt_errors = problems
+        prev_reply = cleaned.customer_reply
+        logger.warning(
+            "assist validation failed attempt=%d message=%r problems=%s reply=%r",
+            attempt, req.message[:80], problems[:6], cleaned.customer_reply[:160],
+        )
 
     if final_output is not None:
         reason_by_id = {
@@ -328,11 +499,14 @@ def assist(req: AssistRequest) -> AssistResponse:
             retrieval=retrieval,
             validation=_validation_out(
                 validation, retries=retries, fallback_used=False, model=model_used,
-                latency_ms=elapsed(),
+                latency_ms=elapsed(), retrieve_ms=retrieve_ms, prompt_ms=prompt_ms,
+                llm_ms=llm_ms, validate_ms=validate_ms,
             ),
         )
 
-    # LLM unavailable or invalid twice: templated reply + templated reasons (§18)
+    # LLM unavailable or invalid twice: templated reply + templated reasons (§18).
+    # The template path keeps the LAST attempt's flags (schema parsed fine but
+    # script/role/numbers failed), so the UI and harness see what was wrong.
     if not validation.schema_ok:
         validation = _template_validation()
         validation.errors = attempt_errors
@@ -352,7 +526,8 @@ def assist(req: AssistRequest) -> AssistResponse:
         retrieval=retrieval,
         validation=_validation_out(
             validation, retries=retries, fallback_used=True, model=model_used,
-            latency_ms=elapsed(),
+            latency_ms=elapsed(), retrieve_ms=retrieve_ms, prompt_ms=prompt_ms,
+            llm_ms=llm_ms, validate_ms=validate_ms,
         ),
     )
 

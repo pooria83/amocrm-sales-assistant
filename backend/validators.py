@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
+from backend.language import detect_text_lang
 from backend.llm import LlmOutput
 from backend.models import DealContext
 from backend.retriever import Match
@@ -212,3 +213,59 @@ def check_numbers(
         if claim.value not in pool:
             return False, claims
     return True, claims
+
+
+# ---------------------------------------------------------------------------
+# Language, leakage and length checks (CONTEXT §17, validators 3/5/6)
+# ---------------------------------------------------------------------------
+
+# Markers that only ever belong to internal text; their presence in the
+# customer reply means the two output blocks were mixed.
+LEAK_MARKERS = (
+    "допродаж",
+    "upsell",
+    "cross-sell",
+    "crosssell",
+    "внутренн",
+    "примечани",
+    "internal",
+    "talking_point",
+    "talking point",
+)
+
+
+def check_language(reply: str, customer_lang: str) -> bool:
+    """language_ok: detected reply language == customer language."""
+    return detect_text_lang(reply) == customer_lang
+
+
+def check_length(reply: str) -> bool:
+    """length_ok: reply present and ≤ 600 characters."""
+    return 0 < len(reply) <= MAX_REPLY_CHARS
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def check_leakage(output: LlmOutput, candidates: Candidates) -> list[str]:
+    """no_leakage: internal text must never appear inside customer_reply."""
+    problems: list[str] = []
+    reply = _norm(output.customer_reply)
+    low = output.customer_reply.lower()
+
+    for candidate in candidates.upsell + candidates.cross_sell:
+        if candidate.id.lower() in low:
+            problems.append(f"candidate id in reply: {candidate.id}")
+
+    for reason in output.upsell_reasons + output.cross_sell_reasons:
+        for text in (reason.reason, reason.talking_point):
+            normalized = _norm(text)
+            if len(normalized) >= 8 and normalized in reply:
+                problems.append(f"internal text leaked into reply: {normalized[:40]}")
+
+    for marker in LEAK_MARKERS:
+        if marker in low:
+            problems.append(f"internal marker in reply: {marker}")
+
+    return problems

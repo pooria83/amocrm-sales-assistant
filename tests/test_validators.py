@@ -2,7 +2,15 @@ from backend.llm import LlmOutput, Reason
 from backend.models import DealContext
 from backend.retriever import get_retriever
 from backend.rules import Candidate, Candidates
-from backend.validators import check_numbers, enforce_candidates, extract_claims, parse_output
+from backend.validators import (
+    check_language,
+    check_leakage,
+    check_length,
+    check_numbers,
+    enforce_candidates,
+    extract_claims,
+    parse_output,
+)
 
 CANDIDATES = Candidates(
     upsell=[Candidate(id="plan-business", rule="seats_near_limit")],
@@ -276,3 +284,79 @@ def test_extract_claims_typed_units() -> None:
     assert by_unit["days"] == 14
     assert by_unit["users"] == 5
     assert "bare" not in by_unit
+
+
+# ---------------------------------------------------------------------------
+# Language, leakage and length checks
+# ---------------------------------------------------------------------------
+
+
+def test_language_ok_matching_languages() -> None:
+    assert check_language("Здравствуйте! На тарифе «Старт» до 5 пользователей.", "ru")
+    assert check_language("Hello! The Start plan includes up to 5 users.", "en")
+
+
+def test_language_fails_on_wrong_language() -> None:
+    assert not check_language("Здравствуйте! На тарифе «Старт» до 5 пользователей.", "en")
+    assert not check_language("Hello! We have everything you need for your team.", "ru")
+
+
+def test_length_limits() -> None:
+    assert check_length("Короткий ответ.")
+    assert check_length("х" * 600)
+    assert not check_length("х" * 601)
+    assert not check_length("")
+
+
+def test_leakage_detects_candidate_id() -> None:
+    output = LlmOutput(
+        customer_reply="Рекомендую тариф plan-business для роста.",
+        upsell_reasons=[],
+        cross_sell_reasons=[],
+    )
+    problems = check_leakage_default(output)
+    assert any("plan-business" in p for p in problems)
+
+
+def test_leakage_detects_internal_reason_text() -> None:
+    output = LlmOutput(
+        customer_reply="Клиент на пробном периоде, значит предложите внедрение.",
+        upsell_reasons=[],
+        cross_sell_reasons=[
+            Reason(
+                id="addon-onboarding",
+                reason="Клиент на пробном периоде, значит предложите внедрение.",
+                talking_point="x",
+            )
+        ],
+    )
+    problems = check_leakage_default(output)
+    assert any("internal text leaked" in p for p in problems)
+
+
+def test_leakage_detects_markers() -> None:
+    for text in (
+        "Подскажу по допродажам отдельно.",
+        "Это internal заметка для нас.",
+        "У нас есть upsell предложение.",
+    ):
+        output = LlmOutput(customer_reply=text, upsell_reasons=[], cross_sell_reasons=[])
+        assert check_leakage_default(output), text
+
+
+def test_leakage_clean_reply_passes() -> None:
+    output = LlmOutput(
+        customer_reply=(
+            "Здравствуйте, Алексей! На тарифе «Старт» можно подключить до 5 пользователей, "
+            "интеграция с Telegram доступна. Стоимость — 990 ₽ за пользователя в месяц."
+        ),
+        upsell_reasons=[
+            Reason(id="plan-business", reason="Места закончились: 5 из 5.", talking_point="Предложите «Бизнес».")
+        ],
+        cross_sell_reasons=[],
+    )
+    assert check_leakage_default(output) == []
+
+
+def check_leakage_default(output: LlmOutput):
+    return check_leakage(output, CANDIDATES)

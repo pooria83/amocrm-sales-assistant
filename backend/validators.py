@@ -104,19 +104,40 @@ def enforce_candidates(
 #   - numbers the customer wrote themselves — same unit, EXCEPT percent:
 #     customer percentages (competitor discounts, injection attempts) are
 #     deliberately not allowlisted (§8 numeric trap / prompt-injection case).
+# A claim with NO unit ("Пробный период — 14.") is rejected outright: we
+# cannot tell which allowlist it belongs to, so the same numeral must never
+# pass merely because it exists in some other unit's list (CONTEXT §3 —
+# matching is same-unit). The model is asked to attach an explicit unit and
+# gets one retry before the templated fallback.
 # ---------------------------------------------------------------------------
 
 _NUM = r"\d[\d\s\u00a0,\.]*"
 
-PERCENT_RE = re.compile(rf"({_NUM})\s*(?:%|percent\b|процент\w*)", re.I)
+PERCENT_RE = re.compile(rf"({_NUM})\s*[-–—]?\s*(?:%|percent\b|процент\w*)", re.I)
 RUB_RE = re.compile(rf"({_NUM})\s*(?:₽|руб\w*|rub\b)", re.I)
 USERS_RE = re.compile(
-    rf"({_NUM})\s*(?:пользовател\w*|сотрудник\w*|человек\w*|user\w*|seat\w*|мест(?:а|ов)?)\b",
+    rf"({_NUM})\s*\+?\s*(?:пользовател\w*|сотрудник\w*|человек\w*|user\w*|seat\w*|мест(?:а|ов)?)\b",
     re.I,
 )
-DAYS_RE = re.compile(r"(\d+)\s*(?:дн\w*|день|дня|days?\b)", re.I)
+DAYS_RE = re.compile(r"(\d+)\s*[-\s]?(?:дн\w*|день|дня|days?\b)", re.I)
 HOURS_RE = re.compile(r"(\d+)\s*[-\s]?(?:час\w*|hours?\b)", re.I)
 BARE_RE = re.compile(r"\b(\d+(?:[.,]\d+)?)\b")
+# Seat spans and seat-limit phrasings whose unit word attaches to the number
+# but is not adjacent: "12 из 50 мест", "12 of 50 seats", "до 5", "up to 50".
+# In this product's KB every such number is a seat count, so both numbers are
+# typed as users; a value outside the users allowlist is still rejected.
+SEAT_SPAN_RE = re.compile(
+    r"(\d+)\s*(?:из|of)\s*(\d+)\s*\+?\s*"
+    r"(?:мест\w*|пользовател\w*|сотрудник\w*|человек\w*|users?\b|seats?\b)",
+    re.I,
+)
+IMPLIED_USERS_RE = re.compile(r"\b(?:до|от|up\s+to|from)\s+(\d+)", re.I)
+# Unit word BEFORE the number: "количество пользователей — 5", "users: 5".
+USERS_AFTER_RE = re.compile(
+    rf"(?:пользовател\w*|сотрудник\w*|человек\w*|user\w*|seat\w*|мест(?:а|ов)?)"
+    rf"\s*(?:[—–-]|:|is|=)?\s*({_NUM})",
+    re.I,
+)
 
 UNITS = ("percent", "rub", "users", "days", "hours")
 
@@ -146,9 +167,18 @@ def _normalize_number(raw: str) -> float:
 
 
 def extract_claims(text: str) -> list[Claim]:
-    """Typed numeric claims; unit-matched spans are masked before bare scan."""
+    """Typed numeric claims; unit-matched spans are masked before bare scan.
+
+    Order: seat spans → explicit units → implied seat limits ("до 5") → bare.
+    Anything still untyped after this comes out as unit="bare" and is rejected
+    by check_numbers.
+    """
     claims: list[Claim] = []
     masked = text
+    for m in SEAT_SPAN_RE.finditer(masked):
+        claims.append(Claim(value=_normalize_number(m.group(1)), unit="users", raw=m.group(0)))
+        claims.append(Claim(value=_normalize_number(m.group(2)), unit="users", raw=m.group(0)))
+    masked = SEAT_SPAN_RE.sub(" ", masked)
     for regex, unit in (
         (PERCENT_RE, "percent"),
         (RUB_RE, "rub"),
@@ -159,6 +189,12 @@ def extract_claims(text: str) -> list[Claim]:
         for m in regex.finditer(masked):
             claims.append(Claim(value=_normalize_number(m.group(1)), unit=unit, raw=m.group(0)))
         masked = regex.sub(" ", masked)
+    for m in USERS_AFTER_RE.finditer(masked):
+        claims.append(Claim(value=_normalize_number(m.group(1)), unit="users", raw=m.group(0)))
+    masked = USERS_AFTER_RE.sub(" ", masked)
+    for m in IMPLIED_USERS_RE.finditer(masked):
+        claims.append(Claim(value=_normalize_number(m.group(1)), unit="users", raw=m.group(0)))
+    masked = IMPLIED_USERS_RE.sub(" ", masked)
     for m in BARE_RE.finditer(masked):
         claims.append(Claim(value=_normalize_number(m.group(1)), unit="bare", raw=m.group(0)))
     return claims
@@ -197,6 +233,10 @@ def allowed_numbers(
     return allowed
 
 
+def _is_bad_claim(claim: Claim, allowed: dict[str, set[float]]) -> bool:
+    return claim.unit == "bare" or claim.value not in allowed[claim.unit]
+
+
 def check_numbers(
     reply: str,
     *,
@@ -204,15 +244,40 @@ def check_numbers(
     deal: DealContext,
     customer_message: str,
 ) -> tuple[bool, list[Claim]]:
-    """numbers_ok: every typed claim is backed by an allowlisted fact."""
+    """numbers_ok: every claim carries a unit and is backed by that unit's list.
+
+    Bare claims (no unit in the reply) fail by construction — a value that
+    exists in one allowlist (e.g. 14 trial days) must not license the same
+    numeral without a unit elsewhere.
+    """
     allowed = allowed_numbers(matches, deal, customer_message)
-    union = set().union(*allowed.values())
     claims = extract_claims(reply)
-    for claim in claims:
-        pool = union if claim.unit == "bare" else allowed[claim.unit]
-        if claim.value not in pool:
-            return False, claims
-    return True, claims
+    return not any(_is_bad_claim(c, allowed) for c in claims), claims
+
+
+def find_bad_claim(
+    reply: str,
+    *,
+    matches: Sequence[Match],
+    deal: DealContext,
+    customer_message: str,
+) -> Claim | None:
+    """The first rejected claim, so the retry reminder can name it (§17)."""
+    allowed = allowed_numbers(matches, deal, customer_message)
+    return next((c for c in extract_claims(reply) if _is_bad_claim(c, allowed)), None)
+
+
+# Denials of a foreign number ("скидка 20%, а не 80%", "20%, not 100%") are
+# the model arguing with the customer's premise — not our claim. They leak the
+# rejected number into the reply, so they are stripped before validation; the
+# model is separately told never to repeat customer discount percentages.
+_PERCENT_DENIAL_RE = re.compile(
+    r"\s*,?\s*(?:а\s+не|not)\s+\d{1,3}(?:[.,]\d{3})?\s*%", re.I
+)
+
+
+def strip_percent_denial(text: str) -> str:
+    return _PERCENT_DENIAL_RE.sub("", text)
 
 
 # ---------------------------------------------------------------------------

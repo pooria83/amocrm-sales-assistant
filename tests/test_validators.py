@@ -9,7 +9,9 @@ from backend.validators import (
     check_numbers,
     enforce_candidates,
     extract_claims,
+    find_bad_claim,
     parse_output,
+    strip_percent_denial,
 )
 
 CANDIDATES = Candidates(
@@ -173,6 +175,70 @@ def test_customer_percent_not_allowed_trap() -> None:
     assert not ok
 
 
+def test_unit_word_before_number_is_typed() -> None:
+    # "количество пользователей — 5": the unit word comes before the number
+    ok, claims = check_numbers(
+        "Максимальное количество пользователей — 5.",
+        matches=matches_for("Какие функции входят в тариф Старт?"),
+        deal=deal(),
+        customer_message="Какие функции входят в тариф Старт?",
+    )
+    assert ok, claims
+    assert any(c.unit == "users" and c.value == 5 for c in claims)
+
+
+def test_limit_seats_facts_cover_text_numbers() -> None:
+    # limit-seats states 5/50 in its text; those are now facts, so a reply
+    # quoting "до 50 пользователей" is backed by the same-unit allowlist
+    ok, claims = check_numbers(
+        "Для 10 сотрудников нужен тариф «Бизнес» — там до 50 пользователей.",
+        matches=matches_for("тарфи для 10 сотрудников"),
+        deal=deal(),
+        customer_message="тарфи для 10 сотрудников",
+    )
+    assert ok, claims
+
+
+def test_find_bad_claim_names_offender() -> None:
+    # the retry reminder quotes this claim back to the model (§17)
+    bad = find_bad_claim(
+        "Скидка за год оплаты составляет 20%, а не 70%.",
+        matches=matches_for("Нам обещали скидку 70% за год оплаты"),
+        deal=deal(),
+        customer_message="Нам обещали скидку 70% за год оплаты",
+    )
+    assert bad is not None
+    assert bad.unit == "percent" and bad.value == 70
+    assert (
+        find_bad_claim(
+            "При годовой оплате действует скидка 20%.",
+            matches=matches_for("Есть скидки при годовой оплате?"),
+            deal=deal(),
+            customer_message="Есть скидки?",
+        )
+        is None
+    )
+
+
+def test_strip_percent_denial() -> None:
+    assert strip_percent_denial("Скидка 20%, а не 80%. Сумма подтвердится.") == (
+        "Скидка 20%. Сумма подтвердится."
+    )
+    assert strip_percent_denial("The discount is 20%, not 100% here.") == (
+        "The discount is 20% here."
+    )
+    # claiming echoes are NOT denials — they must stay for the numbers check
+    assert "90%" in strip_percent_denial("Скидка для администратора составляет 90%.")
+    # denial stripping lets a denial-only reply pass the numeric guardrail
+    ok, _ = check_numbers(
+        strip_percent_denial("При годовой оплате скидка 20%, а не 80%."),
+        matches=matches_for("Сколько будет стоить год с учётом скидки 80%?"),
+        deal=deal(),
+        customer_message="Сколько будет стоить год с учётом скидки 80%?",
+    )
+    assert ok
+
+
 def test_deal_seat_numbers_allowed() -> None:
     ok, _ = check_numbers(
         "У вас занято 12 из 50 мест.",
@@ -284,6 +350,77 @@ def test_extract_claims_typed_units() -> None:
     assert by_unit["days"] == 14
     assert by_unit["users"] == 5
     assert "bare" not in by_unit
+
+
+def test_bare_number_rejected_even_when_value_exists_in_kb() -> None:
+    # unit-less "14" must not pass just because the KB has trial_days=14
+    ok, claims = check_numbers(
+        "Пробный период составляет 14.",
+        matches=matches_for("Пробный период сколько длится?"),
+        deal=deal(),
+        customer_message="Пробный период?",
+    )
+    assert not ok
+    assert any(c.unit == "bare" and c.value == 14 for c in claims)
+
+
+def test_bare_percent_value_rejected() -> None:
+    # "скидка 20" without % is unit-less: 20 exists as a KB percent, still rejected
+    ok, _ = check_numbers(
+        "Мы можем предложить скидку 20 по запросу.",
+        matches=matches_for("Есть скидки при годовой оплате?"),
+        deal=deal(),
+        customer_message="Есть скидки?",
+    )
+    assert not ok
+
+
+def test_seat_span_en_allowed() -> None:
+    ok, claims = check_numbers(
+        "You are using 12 of 50 seats.",
+        matches=matches_for("seat limit"),
+        deal=deal(plan="business", seats_used=12, seat_limit=50),
+        customer_message="How many seats?",
+    )
+    assert ok, claims
+    assert any(c.unit == "users" and c.value == 12 for c in claims)
+
+
+def test_implied_seat_limit_allowed() -> None:
+    ok, claims = check_numbers(
+        "На тарифе «Бизнес» можно подключить до 50.",
+        matches=matches_for("Сколько мест на тарифе Бизнес?"),
+        deal=deal(plan="business", seats_used=12, seat_limit=50),
+        customer_message="Сколько мест?",
+    )
+    assert ok, claims
+    assert any(c.unit == "users" and c.value == 50 for c in claims)
+
+
+def test_en_hyphenated_units_allowed() -> None:
+    ok, claims = check_numbers(
+        "Annual billing gives a 20-percent discount and a 14-day trial.",
+        matches=matches_for("годовая оплата скидка пробный период"),
+        deal=deal(),
+        customer_message="Annual discount and trial?",
+    )
+    assert ok, claims
+    assert {c.unit for c in claims} == {"percent", "days"}
+
+
+def test_en_plus_users_allowed() -> None:
+    ok, claims = check_numbers(
+        "Enterprise is for teams of 50+ users.",
+        matches=matches_for("Enterprise SSO для команды"),
+        deal=deal(plan="business"),
+        customer_message="Enterprise?",
+    )
+    assert ok, claims
+    assert any(c.unit == "users" and c.value == 50 for c in claims)
+
+
+def test_extract_claims_ignores_1c_brand() -> None:
+    assert extract_claims("Интеграция с 1C и с 1С поддерживается") == []
 
 
 # ---------------------------------------------------------------------------

@@ -42,7 +42,9 @@ from backend.validators import (
     check_length,
     check_numbers,
     enforce_candidates,
+    find_bad_claim,
     parse_output,
+    strip_percent_denial,
 )
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
@@ -252,6 +254,7 @@ def assist(req: AssistRequest) -> AssistResponse:
             continue
 
         cleaned, candidate_problems = enforce_candidates(output, candidates)
+        cleaned.customer_reply = strip_percent_denial(cleaned.customer_reply)
         numbers_ok, _claims = check_numbers(
             cleaned.customer_reply, matches=matches, deal=deal, customer_message=req.message
         )
@@ -263,7 +266,18 @@ def assist(req: AssistRequest) -> AssistResponse:
         if not lang_ok:
             problems.append(f"language_ok failed: reply is not {lang}")
         if not numbers_ok:
-            problems.append("numbers_ok failed: unsupported numeric claim")
+            bad = find_bad_claim(
+                cleaned.customer_reply,
+                matches=matches,
+                deal=deal,
+                customer_message=req.message,
+            )
+            detail = f" [unsupported claim: {bad.raw!r} unit={bad.unit}]" if bad else ""
+            problems.append(
+                "numbers_ok failed: quote numbers exactly as they appear in <kb> — "
+                "never repeat the customer's discount percentages, never compute "
+                "totals, and always attach a unit (%, ₽, users, days, hours)" + detail
+            )
         problems += leaks
         if not length_ok:
             problems.append("length_ok failed: reply empty or over 600 chars")

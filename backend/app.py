@@ -329,3 +329,13 @@ def assist(req: AssistRequest) -> AssistResponse:
             latency_ms=elapsed(),
         ),
     )
+
+
+# Serve the built frontend (npm --prefix frontend run build → frontend/dist),
+# so one uvicorn/docker process hosts the whole app. Mounted last so it never
+# shadows the /api routes above.
+_DIST_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _DIST_DIR.is_dir():
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/", StaticFiles(directory=_DIST_DIR, html=True), name="frontend")

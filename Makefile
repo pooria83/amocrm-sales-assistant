@@ -7,7 +7,7 @@ down:
 	docker compose down
 
 logs:
-	docker compose logs -f app
+	docker compose logs -f backend frontend
 
 # Load qwen2.5:7b into Ollama memory before recording (keeps demo latency low)
 warmup:

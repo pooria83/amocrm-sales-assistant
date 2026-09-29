@@ -1,8 +1,9 @@
 services:
-  app:
+  # FastAPI + KB (no static files — the frontend container serves those).
+  backend:
     build: .
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     environment:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
@@ -11,6 +12,24 @@ services:
       RETRIEVAL_THRESHOLD: ${RETRIEVAL_THRESHOLD:-2.5}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # nginx: serves the built React app and proxies /api to the backend.
+  # This is the only container published to the host (http://localhost:8000).
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
     restart: unless-stopped
 
   # OPTIONAL alternative for machines without a host Ollama.

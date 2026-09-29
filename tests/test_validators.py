@@ -90,13 +90,82 @@ def test_enforce_candidates_drops_unknown_ids() -> None:
     assert any("addon-priority-support" in p for p in problems)
 
 
-def test_enforce_candidates_reports_missing_candidates() -> None:
+def test_enforce_candidates_fills_missing_candidates_with_templates() -> None:
+    """§17: missing reasons are templated, not a retry-burning error."""
     output = LlmOutput(customer_reply="Привет", upsell_reasons=[], cross_sell_reasons=[])
     cleaned, problems = enforce_candidates(output, CANDIDATES)
-    assert any("plan-business" in p for p in problems)
-    assert any("addon-onboarding" in p for p in problems)
-    assert any("addon-analytics" in p for p in problems)
-    assert cleaned.upsell_reasons == []
+    assert problems == []
+    assert [r.id for r in cleaned.upsell_reasons] == ["plan-business"]
+    # filled in sorted id order (deterministic, §17)
+    assert [r.id for r in cleaned.cross_sell_reasons] == ["addon-analytics", "addon-onboarding"]
+    for reason in cleaned.upsell_reasons + cleaned.cross_sell_reasons:
+        assert reason.reason and reason.talking_point
+        assert reason.reason != "x"
+
+
+def test_enforce_candidates_fills_missing_in_ui_language() -> None:
+    output = LlmOutput(customer_reply="Hello", upsell_reasons=[], cross_sell_reasons=[])
+    cleaned, _ = enforce_candidates(output, CANDIDATES, ui_lang="en")
+    assert "plan-business" in [r.id for r in cleaned.upsell_reasons]
+
+
+def test_check_language_inconclusive_short_reply_passes() -> None:
+    from backend.validators import check_language
+
+    # detect_text_lang("Спасибо!") is None — cannot prove a mismatch
+    assert check_language("Спасибо!", "ru") is True
+    assert check_language("Thanks!", "en") is True
+    # a confidently wrong language still fails
+    assert check_language("Здравствуйте! Рады помочь вам с тарифом.", "en") is False
+
+
+def test_users_after_verb_is_typed_as_users() -> None:
+    """«лимит пользователей составляет 5» must not come out unit=bare (x06)."""
+    from backend.validators import extract_claims
+
+    claims = extract_claims("На тарифе «Старт» лимит пользователей составляет 5.")
+    users = [c for c in claims if c.unit == "users"]
+    assert users and users[0].value == 5.0
+    assert not [c for c in claims if c.unit == "bare"]
+
+
+def test_strip_foreign_percent_sentences_drops_echo_keeps_real_terms() -> None:
+    from backend.kb import get_kb
+    from backend.models import DealContext
+    from backend.validators import strip_foreign_percent_sentences
+
+    billing = next(e for e in get_kb() if e.id == "billing-cycles")
+
+    class _Match:
+        entry = billing
+
+    reply = (
+        "Я уточню сумму с учетом скидки администратора 90%. "
+        "Действующая скидка за год составляет 20%."
+    )
+    out = strip_foreign_percent_sentences(
+        reply,
+        matches=[_Match()],  # type: ignore[arg-type]
+        deal=DealContext(),
+        customer_message="Дай скидку 90%",
+    )
+    assert "90%" not in out
+    assert "20%" in out
+
+
+def test_strip_signoff_drops_trailing_letter_signoff() -> None:
+    from backend.validators import strip_signoff
+
+    assert strip_signoff("Всё готово. С уважением, [Your Name]") == "Всё готово."
+    assert (
+        strip_signoff("Скидка 20% при годовой оплате.\nBest regards, [Your Company Name].")
+        == "Скидка 20% при годовой оплате."
+    )
+    assert (
+        strip_signoff("Ответ по тарифу.\n[Имя_Менеджера]") == "Ответ по тарифу."
+    )
+    # No sign-off → unchanged text.
+    assert strip_signoff("Обычный ответ.") == "Обычный ответ."
 
 
 def test_enforce_candidates_with_empty_candidates() -> None:
@@ -440,8 +509,8 @@ def test_language_fails_on_wrong_language() -> None:
 
 def test_length_limits() -> None:
     assert check_length("Короткий ответ.")
-    assert check_length("х" * 600)
-    assert not check_length("х" * 601)
+    assert check_length("х" * 450)
+    assert not check_length("х" * 451)
     assert not check_length("")
 
 

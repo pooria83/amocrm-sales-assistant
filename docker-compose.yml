@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-qwen2.5:3b}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-45}
+      RETRIEVAL_THRESHOLD: ${RETRIEVAL_THRESHOLD:-3.0}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # OPTIONAL alternative for machines without a host Ollama.
+  # CPU-only on macOS and NOT used for the demo:
+  #   docker compose --profile ollama up
+  #   OLLAMA_BASE_URL=http://ollama:11434
+  ollama:
+    image: ollama/ollama
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+
+volumes:
+  ollama:

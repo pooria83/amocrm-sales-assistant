@@ -29,3 +29,21 @@ def test_empty_message_is_other() -> None:
 
 def test_short_price_is_pricing() -> None:
     assert detect_intent("Price?") == "pricing"
+
+
+def test_headcount_person_phrase_is_limits() -> None:
+    assert detect_intent("Для нашей команды в 80 человек какой тариф?") == "limits"
+
+
+def test_how_much_is_pricing_not_objection() -> None:
+    # regression: EN phrase "too much" used to collapse to "much" after
+    # stopword removal, so every "How much ...?" read as an objection
+    assert detect_intent("How much does the Business plan cost per user?") == "pricing"
+
+
+def test_pricey_still_detected_as_objection() -> None:
+    assert detect_intent("This is too pricey for us") == "objection"
+
+
+def test_bare_much_is_not_objection() -> None:
+    assert detect_intent("It is much faster than before") == "other"

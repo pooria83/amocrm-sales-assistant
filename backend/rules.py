@@ -31,7 +31,7 @@ _INTENT_PHRASES: dict[str, list[str]] = {
         "expensive",
         "think about",
         "competitor",
-        "too much",
+        "pricey",
     ],
     "reporting": [
         "отчёт",
@@ -87,6 +87,7 @@ _INTENT_PHRASES: dict[str, list[str]] = {
         "пользователей",
         "сотрудники",
         "сотрудников",
+        "человек",
         "места",
         "максимум",
         "предел",
@@ -186,7 +187,12 @@ def find_candidates(
 
     # enterprise_scale first: an explicit "60 users" / "SSO" ask outranks
     # the seat-based next-plan suggestion when both fire (cap = 1 upsell).
-    numbers = [int(n) for n in re.findall(r"\d+", message)]
+    # Unit-bearing numbers are stripped first: "скидка 90%" is a percent, not
+    # a headcount, and must not trigger an Enterprise upsell (§15 says
+    # "mentioned users > 50", not "any number > 50").
+    scan = re.sub(r"\d+(?:[.,]\d+)?\s*(?:%|percent\b)", " ", message, flags=re.I)
+    scan = re.sub(r"\d[\d\s\u00a0,\.]*\s*(?:₽|руб\w*|rub\b)", " ", scan, flags=re.I)
+    numbers = [int(n) for n in re.findall(r"\d+", scan)]
     tokens = set(tokenize(message))
     if deal.plan != "enterprise" and (any(n > 50 for n in numbers) or "sso" in tokens):
         add(upsell, "plan-enterprise", "enterprise_scale")

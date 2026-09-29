@@ -3,35 +3,95 @@
     {
       "id": "plan-start",
       "type": "plan",
-      "title": { "ru": "Тариф «Старт»", "en": "Start plan" },
+      "title": {
+        "ru": "Тариф «Старт»",
+        "en": "Start plan"
+      },
       "text": {
         "ru": "Тариф «Старт»: 990 ₽ за пользователя в месяц, до 5 пользователей. Включает общую входящую (shared inbox), воронку сделок и интеграцию с Telegram.",
         "en": "The Start plan: 990 RUB per user per month, up to 5 users. It includes a shared inbox, a deal pipeline and Telegram integration."
       },
       "keywords": {
-        "ru": ["тариф", "старт", "план", "подписка", "цена", "сколько", "пользователи", "сотрудники", "места", "лимит"],
-        "en": ["plan", "start", "pricing", "price", "cost", "users", "seats", "limit", "how many"]
+        "ru": [
+          "тариф",
+          "старт",
+          "план",
+          "подписка",
+          "цена",
+          "сколько",
+          "пользователи",
+          "сотрудники",
+          "места",
+          "лимит"
+        ],
+        "en": [
+          "plan",
+          "start",
+          "pricing",
+          "price",
+          "cost",
+          "users",
+          "seats",
+          "limit",
+          "how many"
+        ]
       },
-      "facts": { "price_rub_per_user_month": 990, "max_users": 5 },
-      "upsell_to": ["plan-business"],
+      "facts": {
+        "price_rub_per_user_month": 990,
+        "max_users": 5
+      },
+      "upsell_to": [
+        "plan-business"
+      ],
       "cross_sell": [],
       "requires": null,
-      "trigger_hints": ["seats_near_limit"]
+      "trigger_hints": [
+        "seats_near_limit"
+      ]
     },
     {
       "id": "plan-business",
       "type": "plan",
-      "title": { "ru": "Тариф «Бизнес»", "en": "Business plan" },
+      "title": {
+        "ru": "Тариф «Бизнес»",
+        "en": "Business plan"
+      },
       "text": {
         "ru": "Тариф «Бизнес»: 1 990 ₽ за пользователя в месяц, до 50 пользователей. Добавляет правила автоматизации, интеграции с WhatsApp и 1С, а также REST API.",
         "en": "The Business plan: 1,990 RUB per user per month, up to 50 users. It adds automation rules, WhatsApp and 1C integrations, and a REST API."
       },
       "keywords": {
-        "ru": ["тариф", "бизнес", "план", "подписка", "цена", "автоматизация", "api", "whatsapp", "1с", "пользователи"],
-        "en": ["plan", "business", "pricing", "price", "automation", "api", "whatsapp", "1c", "users"]
+        "ru": [
+          "тариф",
+          "бизнес",
+          "план",
+          "подписка",
+          "цена",
+          "автоматизация",
+          "api",
+          "whatsapp",
+          "1с",
+          "пользователи"
+        ],
+        "en": [
+          "plan",
+          "business",
+          "pricing",
+          "price",
+          "automation",
+          "api",
+          "whatsapp",
+          "1c",
+          "users"
+        ]
       },
-      "facts": { "price_rub_per_user_month": 1990, "max_users": 50 },
-      "upsell_to": ["plan-enterprise"],
+      "facts": {
+        "price_rub_per_user_month": 1990,
+        "max_users": 50
+      },
+      "upsell_to": [
+        "plan-enterprise"
+      ],
       "cross_sell": [],
       "requires": null,
       "trigger_hints": []
@@ -39,16 +99,41 @@
     {
       "id": "plan-enterprise",
       "type": "plan",
-      "title": { "ru": "Тариф «Энтерпрайз»", "en": "Enterprise plan" },
+      "title": {
+        "ru": "Тариф «Энтерпрайз»",
+        "en": "Enterprise plan"
+      },
       "text": {
         "ru": "Тариф «Энтерпрайз» — для команд от 50 пользователей, цена рассчитывается индивидуально. Включает SSO, персонального менеджера и SLA на доступность 99,9%.",
         "en": "The Enterprise plan is for teams of 50+ users; the price is quoted on request. It includes SSO, a dedicated manager and a 99.9% uptime SLA."
       },
       "keywords": {
-        "ru": ["тариф", "энтерпрайз", "крупная", "команда", "sso", "sla", "менеджер", "пользователи", "цена"],
-        "en": ["plan", "enterprise", "sso", "sla", "dedicated manager", "uptime", "users", "price"]
+        "ru": [
+          "тариф",
+          "энтерпрайз",
+          "крупная",
+          "команда",
+          "sso",
+          "sla",
+          "менеджер",
+          "пользователи",
+          "цена"
+        ],
+        "en": [
+          "plan",
+          "enterprise",
+          "sso",
+          "sla",
+          "dedicated manager",
+          "uptime",
+          "users",
+          "price"
+        ]
       },
-      "facts": { "min_users": 50, "uptime_percent": 99.9 },
+      "facts": {
+        "min_users": 50,
+        "uptime_percent": 99.9
+      },
       "upsell_to": [],
       "cross_sell": [],
       "requires": null,
@@ -57,34 +142,85 @@
     {
       "id": "limit-seats",
       "type": "limit",
-      "title": { "ru": "Лимит пользователей", "en": "Seat limit" },
+      "title": {
+        "ru": "Лимит пользователей",
+        "en": "Seat limit"
+      },
       "text": {
         "ru": "На каждом тарифе есть лимит пользователей: «Старт» — до 5, «Бизнес» — до 50. Чтобы подключить больше сотрудников, чем позволяет тариф, нужно перейти на следующий тариф.",
         "en": "Every plan has a seat limit: Start up to 5 users, Business up to 50. To add more employees than the plan allows, you need to move to the next plan."
       },
       "keywords": {
-        "ru": ["лимит", "пользователи", "сотрудники", "места", "сколько", "подключить", "больше", "превышение", "перейти"],
-        "en": ["limit", "seats", "users", "employees", "how many", "add more", "exceed", "upgrade", "next plan"]
+        "ru": [
+          "лимит",
+          "пользователи",
+          "сотрудники",
+          "места",
+          "сколько",
+          "подключить",
+          "больше",
+          "превышение",
+          "перейти"
+        ],
+        "en": [
+          "limit",
+          "seats",
+          "users",
+          "employees",
+          "how many",
+          "add more",
+          "exceed",
+          "upgrade",
+          "next plan"
+        ]
       },
       "facts": {},
-      "upsell_to": ["plan-business"],
+      "upsell_to": [
+        "plan-business"
+      ],
       "cross_sell": [],
       "requires": null,
-      "trigger_hints": ["seats_near_limit"]
+      "trigger_hints": [
+        "seats_near_limit"
+      ]
     },
     {
       "id": "billing-cycles",
       "type": "faq",
-      "title": { "ru": "Оплата и скидка за год", "en": "Billing and annual discount" },
+      "title": {
+        "ru": "Оплата и скидка за год",
+        "en": "Billing and annual discount"
+      },
       "text": {
         "ru": "Подписку можно оплачивать помесячно или за год. При оплате за год действует скидка 20%.",
         "en": "You can pay for the subscription monthly or annually. Annual billing comes with a 20% discount."
       },
       "keywords": {
-        "ru": ["оплата", "счёт", "скидка", "годовая", "помесячно", "разово", "цена", "дешевле", "акция"],
-        "en": ["billing", "payment", "discount", "annual", "yearly", "monthly", "cheaper", "price"]
+        "ru": [
+          "оплата",
+          "счёт",
+          "скидка",
+          "годовая",
+          "помесячно",
+          "разово",
+          "цена",
+          "дешевле",
+          "акция"
+        ],
+        "en": [
+          "billing",
+          "payment",
+          "discount",
+          "annual",
+          "yearly",
+          "monthly",
+          "cheaper",
+          "price"
+        ]
       },
-      "facts": { "discount_annual_percent": 20 },
+      "facts": {
+        "discount_annual_percent": 20
+      },
       "upsell_to": [],
       "cross_sell": [],
       "requires": null,
@@ -93,16 +229,356 @@
     {
       "id": "trial",
       "type": "faq",
-      "title": { "ru": "Пробный период", "en": "Free trial" },
+      "title": {
+        "ru": "Пробный период",
+        "en": "Free trial"
+      },
       "text": {
         "ru": "Пробный период — 14 дней бесплатно, банковская карта не нужна. В триал включены все функции тарифа «Бизнес».",
         "en": "The trial lasts 14 days free of charge, no credit card required. It includes all Business plan features."
       },
       "keywords": {
-        "ru": ["пробный", "триал", "дни", "бесплатно", "попробовать", "карта", "тест"],
-        "en": ["trial", "free", "days", "test", "try", "credit card"]
+        "ru": [
+          "пробный",
+          "триал",
+          "дни",
+          "бесплатно",
+          "попробовать",
+          "карта",
+          "тест"
+        ],
+        "en": [
+          "trial",
+          "free",
+          "days",
+          "test",
+          "try",
+          "credit card"
+        ]
       },
-      "facts": { "trial_days": 14 },
+      "facts": {
+        "trial_days": 14
+      },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "int-telegram",
+      "type": "integration",
+      "title": {
+        "ru": "Интеграция с Telegram",
+        "en": "Telegram integration"
+      },
+      "text": {
+        "ru": "Интеграция с Telegram доступна на всех тарифах, включая «Старт». Сообщения из Telegram попадают в общий диалог.",
+        "en": "Telegram integration is available on all plans, including Start. Telegram messages land in the shared conversation."
+      },
+      "keywords": {
+        "ru": [
+          "telegram",
+          "телеграм",
+          "интеграция",
+          "подключить",
+          "мессенджер",
+          "бот"
+        ],
+        "en": [
+          "telegram",
+          "integration",
+          "connect",
+          "messenger",
+          "chat"
+        ]
+      },
+      "facts": {},
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "int-whatsapp",
+      "type": "integration",
+      "title": {
+        "ru": "Интеграция с WhatsApp",
+        "en": "WhatsApp integration"
+      },
+      "text": {
+        "ru": "Интеграция с WhatsApp доступна на тарифах «Бизнес» и выше.",
+        "en": "WhatsApp integration is available on the Business plan and above."
+      },
+      "keywords": {
+        "ru": [
+          "whatsapp",
+          "ватсап",
+          "интеграция",
+          "подключить",
+          "мессенджер"
+        ],
+        "en": [
+          "whatsapp",
+          "integration",
+          "connect",
+          "messenger"
+        ]
+      },
+      "facts": {},
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": "plan-business",
+      "trigger_hints": []
+    },
+    {
+      "id": "int-1c",
+      "type": "integration",
+      "title": {
+        "ru": "Интеграция с 1С",
+        "en": "1C integration"
+      },
+      "text": {
+        "ru": "Интеграция с 1С доступна на тарифах «Бизнес» и выше. Данные синхронизируются с учётной системой.",
+        "en": "1C integration is available on the Business plan and above. Data is synchronised with your accounting system."
+      },
+      "keywords": {
+        "ru": [
+          "1с",
+          "1c",
+          "интеграция",
+          "подключить",
+          "учётная",
+          "бухгалтерия",
+          "синхронизация"
+        ],
+        "en": [
+          "1c",
+          "1c integration",
+          "connect",
+          "accounting",
+          "sync"
+        ]
+      },
+      "facts": {},
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": "plan-business",
+      "trigger_hints": []
+    },
+    {
+      "id": "int-gsheets",
+      "type": "integration",
+      "title": {
+        "ru": "Интеграция с Google Таблицами",
+        "en": "Google Sheets integration"
+      },
+      "text": {
+        "ru": "Интеграция с Google Таблицами доступна на всех тарифах.",
+        "en": "Google Sheets integration is available on all plans."
+      },
+      "keywords": {
+        "ru": [
+          "google",
+          "таблицы",
+          "gsheets",
+          "интеграция",
+          "подключить",
+          "экспорт"
+        ],
+        "en": [
+          "google sheets",
+          "gsheets",
+          "integration",
+          "connect",
+          "export"
+        ]
+      },
+      "facts": {},
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "faq-api",
+      "type": "faq",
+      "title": {
+        "ru": "REST API",
+        "en": "REST API"
+      },
+      "text": {
+        "ru": "REST API доступен на тарифах «Бизнес» и выше. Через API можно интегрировать сервис со своими системами.",
+        "en": "The REST API is available on the Business plan and above. You can integrate the service with your own systems via the API."
+      },
+      "keywords": {
+        "ru": [
+          "api",
+          "rest",
+          "интеграция",
+          "разработчики",
+          "доступ",
+          "webhooks"
+        ],
+        "en": [
+          "api",
+          "rest",
+          "integration",
+          "developers",
+          "webhooks"
+        ]
+      },
+      "facts": {},
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": "plan-business",
+      "trigger_hints": []
+    },
+    {
+      "id": "addon-analytics",
+      "type": "addon",
+      "title": {
+        "ru": "Расширенная аналитика",
+        "en": "Advanced Analytics"
+      },
+      "text": {
+        "ru": "Дополнение «Расширенная аналитика» — 4 900 ₽ в месяц за аккаунт. Отчёты по менеджерам и воронка конверсий. Доступно на тарифе «Бизнес» и выше.",
+        "en": "The Advanced Analytics add-on costs 4,900 RUB per month per account. Manager-level reports and funnel conversion. Available on the Business plan and above."
+      },
+      "keywords": {
+        "ru": [
+          "аналитика",
+          "отчёты",
+          "отчеты",
+          "воронка",
+          "конверсия",
+          "менеджеры",
+          "дополнение"
+        ],
+        "en": [
+          "analytics",
+          "reports",
+          "funnel",
+          "conversion",
+          "manager reports",
+          "add-on"
+        ]
+      },
+      "facts": {
+        "price_rub_per_month": 4900
+      },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": "plan-business",
+      "trigger_hints": []
+    },
+    {
+      "id": "addon-priority-support",
+      "type": "addon",
+      "title": {
+        "ru": "Приоритетная поддержка",
+        "en": "Priority Support"
+      },
+      "text": {
+        "ru": "Дополнение «Приоритетная поддержка» — 9 900 ₽ в месяц. Первый ответ поддержки за 1 час в рабочие дни.",
+        "en": "The Priority Support add-on costs 9,900 RUB per month. First response from support within 1 hour on business days."
+      },
+      "keywords": {
+        "ru": [
+          "поддержка",
+          "priority",
+          "приоритет",
+          "sla",
+          "срочно",
+          "быстро",
+          "ответ"
+        ],
+        "en": [
+          "support",
+          "priority",
+          "sla",
+          "urgent",
+          "fast",
+          "response"
+        ]
+      },
+      "facts": {
+        "price_rub_per_month": 9900,
+        "response_hours": 1
+      },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "addon-onboarding",
+      "type": "addon",
+      "title": {
+        "ru": "Пакет внедрения",
+        "en": "Onboarding package"
+      },
+      "text": {
+        "ru": "Дополнение «Пакет внедрения» — 29 900 ₽ разово: настройка, импорт данных и обучение команды.",
+        "en": "The Onboarding package costs 29,900 RUB one-time: setup, data import and team training."
+      },
+      "keywords": {
+        "ru": [
+          "внедрение",
+          "настройка",
+          "обучение",
+          "импорт",
+          "данных",
+          "запуск",
+          "помощь"
+        ],
+        "en": [
+          "onboarding",
+          "setup",
+          "training",
+          "import",
+          "data import",
+          "launch"
+        ]
+      },
+      "facts": {
+        "price_rub_one_time": 29900
+      },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "security-data",
+      "type": "faq",
+      "title": {
+        "ru": "Безопасность и хранение данных",
+        "en": "Security and data location"
+      },
+      "text": {
+        "ru": "Данные хранятся в дата-центрах в России и шифруются при передаче и хранении.",
+        "en": "Data is stored in data centres in Russia and encrypted in transit and at rest."
+      },
+      "keywords": {
+        "ru": [
+          "безопасность",
+          "данные",
+          "хранение",
+          "шифрование",
+          "россия",
+          "дата-центр",
+          "gdpr"
+        ],
+        "en": [
+          "security",
+          "data",
+          "storage",
+          "encryption",
+          "russia",
+          "data centres"
+        ]
+      },
+      "facts": {},
       "upsell_to": [],
       "cross_sell": [],
       "requires": null,

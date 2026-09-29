@@ -15,6 +15,28 @@ def test_kb_loads_and_contains_plan_entries() -> None:
     assert start.upsell_to == ["plan-business"]
 
 
+def test_integrations_and_addons_entries() -> None:
+    entries = load_kb()
+    by_id = {e.id: e for e in entries}
+    for expected in [
+        "int-telegram",
+        "int-whatsapp",
+        "int-1c",
+        "int-gsheets",
+        "faq-api",
+        "addon-analytics",
+        "addon-priority-support",
+        "addon-onboarding",
+        "security-data",
+    ]:
+        assert expected in by_id, expected
+    assert by_id["int-1c"].requires == "plan-business"
+    assert by_id["int-telegram"].requires is None
+    assert by_id["addon-analytics"].facts["price_rub_per_month"] == 4900
+    assert by_id["addon-onboarding"].facts["price_rub_one_time"] == 29900
+    assert by_id["addon-priority-support"].facts["response_hours"] == 1
+
+
 def test_duplicate_ids_rejected(tmp_path) -> None:
     entry = {
         "id": "plan-start",

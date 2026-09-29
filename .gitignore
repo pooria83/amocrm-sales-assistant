@@ -8,6 +8,8 @@ frontend/dist/
 .env
 video/out/
 demo/videos/
+mcp/out/
+mcp/RESULTS.md
 *.aiff
 *.mp4
 *.webm

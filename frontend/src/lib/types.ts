@@ -78,6 +78,7 @@ export interface InternalSalesHints {
 
 export interface Validation {
   numbers_ok: boolean
+  capacity_ok: boolean
   language_ok: boolean
   no_leakage: boolean
   schema_ok: boolean

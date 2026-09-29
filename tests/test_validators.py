@@ -495,5 +495,46 @@ def test_leakage_clean_reply_passes() -> None:
     assert check_leakage_default(output) == []
 
 
+# --- placeholders (regression: run 20260929-155851, ru40 ended with
+#     "[Your Company Name]" — hallucinated sign-off scaffolding) -----------
+
+
+def test_leakage_detects_bracketed_placeholder() -> None:
+    output = LlmOutput(
+        customer_reply="Для команды от 50 человек подойдёт «Энтерпрайз». [Your Company Name]",
+        upsell_reasons=[],
+        cross_sell_reasons=[],
+    )
+    problems = check_leakage_default(output)
+    assert any("placeholder" in p for p in problems)
+
+
+def test_leakage_detects_template_variables() -> None:
+    for text in ("Привет, {{name}}!", "Ваш тариф: {plan}", "Привет, <клиент>!"):
+        output = LlmOutput(customer_reply=text, upsell_reasons=[], cross_sell_reasons=[])
+        problems = check_leakage_default(output)
+        assert any("placeholder" in p for p in problems), text
+
+
+def test_leakage_placeholder_words() -> None:
+    output = LlmOutput(
+        customer_reply="С уважением, lorem ipsum department.",
+        upsell_reasons=[],
+        cross_sell_reasons=[],
+    )
+    assert any("placeholder" in p for p in check_leakage_default(output))
+
+
+def test_leakage_allows_legit_brackets_in_plain_text() -> None:
+    # Angle brackets only count when they look like a tag; numbers and
+    # percentages in normal sentences must stay clean.
+    output = LlmOutput(
+        customer_reply="Скидка 20% при годовой оплате, 1 990 ₽ за пользователя.",
+        upsell_reasons=[],
+        cross_sell_reasons=[],
+    )
+    assert check_leakage_default(output) == []
+
+
 def check_leakage_default(output: LlmOutput):
     return check_leakage(output, CANDIDATES)

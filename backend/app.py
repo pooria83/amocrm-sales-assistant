@@ -17,6 +17,7 @@ from backend.language import detect_language
 from backend.llm import (
     LlmOutput,
     LlmUnavailable,
+    LlmUnparsable,
     Reason,
     build_messages,
     generate,
@@ -41,6 +42,7 @@ from backend.validators import (
     check_leakage,
     check_length,
     check_numbers,
+    check_plan_capacity,
     enforce_candidates,
     find_bad_claim,
     parse_output,
@@ -161,6 +163,7 @@ def _validation_out(
 ) -> ValidationOut:
     return ValidationOut(
         numbers_ok=base.numbers_ok,
+        capacity_ok=base.capacity_ok,
         language_ok=base.language_ok,
         no_leakage=base.no_leakage,
         schema_ok=base.schema_ok,
@@ -175,7 +178,7 @@ def _template_validation() -> Validation:
     """Templates pass every check by construction (§18)."""
     return Validation(
         schema_ok=True, candidates_ok=True, language_ok=True, numbers_ok=True,
-        no_leakage=True, length_ok=True,
+        capacity_ok=True, no_leakage=True, length_ok=True,
     )
 
 
@@ -247,6 +250,12 @@ def assist(req: AssistRequest) -> AssistResponse:
         except LlmUnavailable as exc:
             attempt_errors = [f"llm_unavailable: {exc}"]
             break
+        except LlmUnparsable as exc:
+            # Not valid JSON → same path as a schema failure: one retry, then
+            # the templated fallback (§17). Without this the exception escaped
+            # as an unhandled HTTP 500.
+            attempt_errors = [f"schema_ok failed: {exc}"]
+            continue
 
         output = parse_output(parsed)
         if output is None:
@@ -261,6 +270,7 @@ def assist(req: AssistRequest) -> AssistResponse:
         lang_ok = check_language(cleaned.customer_reply, lang)
         leaks = check_leakage(cleaned, candidates)
         length_ok = check_length(cleaned.customer_reply)
+        capacity_problems = check_plan_capacity(cleaned.customer_reply, req.message)
 
         problems = list(candidate_problems)
         if not lang_ok:
@@ -278,6 +288,7 @@ def assist(req: AssistRequest) -> AssistResponse:
                 "never repeat the customer's discount percentages, never compute "
                 "totals, and always attach a unit (%, ₽, users, days, hours)" + detail
             )
+        problems += capacity_problems
         problems += leaks
         if not length_ok:
             problems.append("length_ok failed: reply empty or over 600 chars")
@@ -287,6 +298,7 @@ def assist(req: AssistRequest) -> AssistResponse:
             candidates_ok=not candidate_problems,
             language_ok=lang_ok,
             numbers_ok=numbers_ok,
+            capacity_ok=not capacity_problems,
             no_leakage=not leaks,
             length_ok=length_ok,
             errors=problems,

@@ -88,6 +88,7 @@ class RetrievalOut(BaseModel):
 
 class ValidationOut(BaseModel):
     numbers_ok: bool
+    capacity_ok: bool
     language_ok: bool
     no_leakage: bool
     schema_ok: bool

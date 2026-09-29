@@ -137,7 +137,7 @@ def evaluate_expectations(
     fallback = validation["fallback_used"]
 
     if not fallback:
-        for flag in ("schema_ok", "language_ok", "no_leakage", "numbers_ok"):
+        for flag in ("schema_ok", "language_ok", "no_leakage", "numbers_ok", "capacity_ok"):
             add(checks, f"validation.{flag}", validation[flag] is True, True, validation[flag])
     add(checks, "reply.lang == detected_lang", reply["lang"] == assist["detected_lang"],
         assist["detected_lang"], reply["lang"])
@@ -293,6 +293,7 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> str:
             f"- **Validation:** schema={'✓' if v['schema_ok'] else '✗'} "
             f"language={'✓' if v['language_ok'] else '✗'} "
             f"numbers={'✓' if v['numbers_ok'] else '✗'} "
+            f"capacity={'✓' if v['capacity_ok'] else '✗'} "
             f"leakage={'✓' if v['no_leakage'] else '✗'}",
         ]
         hints = assist["internal_sales_hints"]

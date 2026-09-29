@@ -1,6 +1,7 @@
 """Output validators (CONTEXT §17), run in order:
 
-schema_ok → candidates_ok → language_ok → numbers_ok → no_leakage → length_ok
+schema_ok → candidates_ok → language_ok → numbers_ok → capacity_ok
+→ no_leakage → length_ok
 
 Any failure ⇒ one retry with a stricter reminder ⇒ templated fallback (§18).
 """
@@ -11,10 +12,11 @@ from dataclasses import dataclass, field
 
 from pydantic import ValidationError
 
+from backend.kb import KbEntry, get_kb
 from backend.language import detect_text_lang
 from backend.llm import LlmOutput
 from backend.models import DealContext
-from backend.retriever import Match
+from backend.retriever import Match, tokenize
 from backend.rules import Candidates
 
 MAX_REPLY_CHARS = 600
@@ -26,6 +28,7 @@ class Validation:
     candidates_ok: bool = False
     language_ok: bool = False
     numbers_ok: bool = False
+    capacity_ok: bool = False
     no_leakage: bool = False
     length_ok: bool = False
     errors: list[str] = field(default_factory=list)
@@ -38,6 +41,7 @@ class Validation:
                 self.candidates_ok,
                 self.language_ok,
                 self.numbers_ok,
+                self.capacity_ok,
                 self.no_leakage,
                 self.length_ok,
             )
@@ -219,7 +223,14 @@ def allowed_numbers(
     matches: Sequence[Match], deal: DealContext, customer_message: str
 ) -> dict[str, set[float]]:
     allowed: dict[str, set[float]] = {unit: set() for unit in UNITS}
+    _, inapplicable = inapplicable_plans(customer_message)
+    skipped = {entry.id for entry in inapplicable}
     for match in matches:
+        if match.entry.id in skipped:
+            # The customer asked for more users than this plan supports: its
+            # price/limit must not license a claim in the reply (ru21 bug —
+            # a "Business for 10 employees" answer quoting Start's 990 ₽).
+            continue
         for key, value in match.entry.facts.items():
             unit = _unit_for_fact(key)
             if unit is not None and isinstance(value, int | float):
@@ -281,6 +292,102 @@ def strip_percent_denial(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Plan-capacity guardrail (context-aware numeric check).
+#
+# Real failure this fixes: "тарфи для 10 сотрудников" → a reply recommending
+# «Бизнес» while quoting Start's 990 ₽ (run 20260929-155851, ru21_typo_tarfy).
+#
+# A plan whose facts.max_users is below the user count the customer explicitly
+# asked for must not be presented as the applicable plan:
+#   1. allowed_numbers() drops that plan's facts so check_numbers rejects its
+#      price/limits (the ru21 case);
+#   2. check_plan_capacity() rejects a reply that names the plan as the answer,
+#      unless the reply explains that the plan does NOT fit (negation cues).
+#
+# Only typed users-claims in the CUSTOMER's own message create the constraint
+# ("тариф для 10 сотрудников"); deal seats and numbers inside the reply never
+# do. A message without such a claim ("How much is Start?") constrains nothing.
+# Plans without max_users in facts (e.g. Enterprise, "50+") are never blocked.
+# ---------------------------------------------------------------------------
+
+_PLAN_CONTEXT_TOKENS = frozenset(
+    tokenize("тариф тарифы план планы подписка subscription plan plans tariff")
+)
+# Phrases that explain a limit instead of presenting the plan as suitable.
+_NEGATION_CUES = (
+    "не подходит",
+    "не подойд",
+    "не влез",
+    "не хватит",
+    "не рассчитан",
+    "не позволит",
+    "максимум",
+    "does not fit",
+    "doesn't fit",
+    "not fit",
+    "not suitable",
+    "won't fit",
+    "will not fit",
+    "too small",
+    "not enough",
+    "cannot fit",
+    "can't fit",
+    "maximum",
+)
+
+
+def requested_capacity(customer_message: str) -> float | None:
+    """The largest user count the customer explicitly wrote, if any."""
+    users = [c.value for c in extract_claims(customer_message) if c.unit == "users"]
+    return max(users) if users else None
+
+
+def inapplicable_plans(customer_message: str) -> tuple[float | None, list[KbEntry]]:
+    """(capacity, plan entries whose max_users < capacity). Empty if no claim."""
+    capacity = requested_capacity(customer_message)
+    if capacity is None:
+        return None, []
+    bad = []
+    for entry in get_kb():
+        if entry.type != "plan":
+            continue
+        max_users = entry.facts.get("max_users")
+        if isinstance(max_users, int | float) and max_users < capacity:
+            bad.append(entry)
+    return capacity, bad
+
+
+def check_plan_capacity(reply: str, customer_message: str) -> list[str]:
+    """capacity_ok: an under-sized plan must not be offered as the answer.
+
+    The reply must both name a plan (a plan-context word like «тариф»/«plan»)
+    and one of the inapplicable plan's distinctive title tokens; replies that
+    explain the limit instead (negation cue anywhere, replies that never name
+    a plan, e.g. "let's get started") pass.
+    """
+    capacity, entries = inapplicable_plans(customer_message)
+    if not entries:
+        return []
+    reply_tokens = set(tokenize(reply))
+    if not (_PLAN_CONTEXT_TOKENS & reply_tokens):
+        return []
+    low = reply.lower()
+    if any(cue in low for cue in _NEGATION_CUES):
+        return []
+    problems: list[str] = []
+    for entry in entries:
+        title_tokens = set(tokenize(f"{entry.title.ru} {entry.title.en}")) - _PLAN_CONTEXT_TOKENS
+        if title_tokens & reply_tokens:
+            problems.append(
+                f"plan_capacity_ok failed: «{entry.title.ru}» supports "
+                f"{entry.facts.get('max_users')} users but the customer asked for "
+                f"{capacity:g} — never present this plan as suitable; recommend a "
+                "plan that fits or explain the limit safely"
+            )
+    return problems
+
+
+# ---------------------------------------------------------------------------
 # Language, leakage and length checks (CONTEXT §17, validators 3/5/6)
 # ---------------------------------------------------------------------------
 
@@ -297,6 +404,17 @@ LEAK_MARKERS = (
     "talking_point",
     "talking point",
 )
+
+# Template scaffolding the model occasionally hallucinates into a reply
+# (run 20260929-155851: one reply ended with the sign-off "[Your Company
+# Name]"). No legitimate sentence in this product uses brackets, braces or
+# angle brackets, so any hit is a placeholder and fails no_leakage.
+_PLACEHOLDER_PATTERNS = (
+    ("bracketed placeholder", re.compile(r"\[[^\[\]\n]{1,60}\]")),
+    ("template variable", re.compile(r"\{[^{}\n]{1,40}\}")),
+    ("markup placeholder", re.compile(r"<[^\W\d_][^<>\n]{0,60}>")),
+)
+_PLACEHOLDER_WORDS = ("lorem ipsum",)
 
 
 def check_language(reply: str, customer_lang: str) -> bool:
@@ -332,5 +450,13 @@ def check_leakage(output: LlmOutput, candidates: Candidates) -> list[str]:
     for marker in LEAK_MARKERS:
         if marker in low:
             problems.append(f"internal marker in reply: {marker}")
+
+    for name, pattern in _PLACEHOLDER_PATTERNS:
+        hit = pattern.search(output.customer_reply)
+        if hit:
+            problems.append(f"placeholder in reply ({name}): {hit.group(0)!r}")
+    for word in _PLACEHOLDER_WORDS:
+        if word in low:
+            problems.append(f"placeholder in reply: {word!r}")
 
     return problems

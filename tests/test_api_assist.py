@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
 
 from backend.app import app
-from backend.llm import LlmUnavailable
+from backend.llm import LlmUnavailable, LlmUnparsable
 
 client = TestClient(app)
 
@@ -217,3 +217,106 @@ def test_kb_refs_exclude_below_threshold_matches(monkeypatch) -> None:
     assert "int-gsheets" not in refs
     shown_ids = [m["id"] for m in data["retrieval"]["matches"]]
     assert "int-gsheets" in shown_ids  # raw matches still visible in the UI
+
+
+# ---------------------------------------------------------------------------
+# Non-JSON model output must follow the §17 retry/fallback path, never a 500
+# (regression: LlmUnparsable used to escape the assist loop unhandled).
+# ---------------------------------------------------------------------------
+
+
+def test_unparsable_json_retries_then_falls_back(monkeypatch) -> None:
+    attempts = []
+
+    def unparsable(messages):
+        attempts.append(messages)
+        raise LlmUnparsable("not JSON: sorry, here is prose")
+
+    monkeypatch.setattr("backend.app.generate", unparsable)
+    data = post_assist(
+        monkeypatch, S1_MSG, deal={"plan": "start", "seats_used": 5, "seat_limit": 5}
+    )
+
+    assert len(attempts) == 2
+    assert data["validation"]["fallback_used"] is True
+    assert data["validation"]["retries"] == 1
+    assert data["validation"]["schema_ok"] is True  # template validation applied
+    assert "уточняю детали" in data["customer_reply"]["text"]
+    # the retry reminder quotes the schema failure:
+    assert any("schema_ok failed" in m["content"] for m in attempts[1])
+
+
+def test_unparsable_json_then_valid_output_succeeds(monkeypatch) -> None:
+    outputs = [
+        LlmUnparsable("not JSON: <html>"),
+        (
+            {
+                "customer_reply": "Здравствуйте! На тарифе «Старт» до 5 пользователей.",
+                "upsell_reasons": [
+                    {
+                        "id": "plan-business",
+                        "reason": "Места закончились: 5 из 5.",
+                        "talking_point": "Предложите «Бизнес».",
+                    }
+                ],
+                "cross_sell_reasons": [],
+            },
+            "qwen2.5:7b",
+        ),
+    ]
+
+    def generate(messages):
+        out = outputs.pop(0)
+        if isinstance(out, Exception):
+            raise out
+        return out
+
+    monkeypatch.setattr("backend.app.generate", generate)
+    data = post_assist(
+        monkeypatch, S1_MSG, deal={"plan": "start", "seats_used": 5, "seat_limit": 5}
+    )
+
+    assert data["validation"]["fallback_used"] is False
+    assert data["validation"]["retries"] == 1
+    assert data["validation"]["capacity_ok"] is True
+    assert "Старт" in data["customer_reply"]["text"]
+
+
+# ---------------------------------------------------------------------------
+# Hallucinated sign-off scaffolding (run 20260929-155851, ru40) must fail
+# no_leakage, be retried once, and never reach the customer.
+# ---------------------------------------------------------------------------
+
+
+def test_placeholder_signoff_retried_then_fixed(monkeypatch) -> None:
+    enterprise_reason = {
+        "id": "plan-enterprise",
+        "reason": "Клиент упомянул 60 сотрудников и SSO.",
+        "talking_point": "Обсудите «Энтерпрайз».",
+    }
+    outputs = [
+        (
+            {
+                "customer_reply": "Тариф «Энтерпрайз» подойдёт для 60 человек. [Your Company Name]",
+                "upsell_reasons": [enterprise_reason],
+                "cross_sell_reasons": [],
+            },
+            "qwen2.5:7b",
+        ),
+        (
+            {
+                "customer_reply": "Здравствуйте! Для 60 человек подойдёт тариф «Энтерпрайз».",
+                "upsell_reasons": [enterprise_reason],
+                "cross_sell_reasons": [],
+            },
+            "qwen2.5:7b",
+        ),
+    ]
+    monkeypatch.setattr("backend.app.generate", lambda messages: outputs.pop(0))
+    data = post_assist(monkeypatch, "Для нашей команды в 60 человек нужен SSO?")
+
+    assert data["validation"]["fallback_used"] is False
+    assert data["validation"]["retries"] == 1
+    assert data["validation"]["no_leakage"] is True
+    assert "[Your Company Name]" not in data["customer_reply"]["text"]
+    assert data["customer_reply"]["text"].endswith("«Энтерпрайз».")

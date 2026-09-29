@@ -153,8 +153,13 @@ cases:
   - id: ru21_typo_tarfy
     category: morphology
     message: "тарфи для 10 сотрудников"
+    # Hardened behaviour (2026-09-29 review): this typo message only retrieves
+    # plan-start (990 ₽), which does not fit a 10-employee ask — the numeric +
+    # plan-capacity guardrails reject the wrong plan/price pair, the model
+    # retries once and the honest template fallback is returned. A wrong price
+    # must never reach the customer; fallback here is the correct outcome.
     expect: {lang: ru, grounded: true, intent: limits, ids: [limit-seats, plan-start],
-             upsell: [], cross_sell: [], fallback: false}
+             upsell: [], cross_sell: [], fallback: true}
 
   - id: ru22_tarify_plural
     category: morphology

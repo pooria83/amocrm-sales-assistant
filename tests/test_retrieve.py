@@ -74,3 +74,26 @@ def test_matched_terms_are_stems_present_in_query() -> None:
     query_stems = set(tokenize(query))
     assert matches
     assert set(matches[0].matched_terms) <= query_stems
+
+
+def test_title_bonus_fixes_plan_specific_rank1() -> None:
+    """Regression (mcp run 20260929-155851, hit@1 misses fixed by the
+    deterministic title bonus in retriever.search)."""
+    cases = {
+        "Сколько стоит тариф Бизнес за пользователя в месяц?": "plan-business",
+        "Какие функции входят в тариф Старт?": "plan-start",
+        "How much does the Business plan cost per user?": "plan-business",
+    }
+    for query, expected in cases.items():
+        matches, _, grounded = _retriever().retrieve(query)
+        assert grounded, query
+        assert matches[0].entry.id == expected, (query, [(m.entry.id, m.score) for m in matches])
+
+
+def test_title_bonus_keeps_no_match_ungrounded() -> None:
+    for query in (
+        "Сможете сделать нам игру на Unity?",
+        "Do you resell office furniture?",
+    ):
+        matches, _, grounded = _retriever().retrieve(query)
+        assert not grounded, (query, [(m.entry.id, m.score) for m in matches])

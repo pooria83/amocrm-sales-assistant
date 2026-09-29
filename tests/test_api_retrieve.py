@@ -75,3 +75,52 @@ def test_retrieve_short_message_inherits_conversation_language() -> None:
 def test_retrieve_rejects_empty_message() -> None:
     resp = client.post("/api/retrieve", json={"message": ""})
     assert resp.status_code == 422
+
+
+def test_assist_shares_the_retriever_with_retrieve(monkeypatch) -> None:
+    """Contract (CONTEXT §4a): /api/assist must call the SAME retrieval service
+    as /api/retrieve — identical matches, threshold and grounded for one message."""
+
+    def generate(messages):
+        return (
+            {
+                "customer_reply": "Здравствуйте! На тарифе «Старт» до 5 пользователей.",
+                "upsell_reasons": [],
+                "cross_sell_reasons": [],
+            },
+            "qwen2.5:7b",
+        )
+
+    monkeypatch.setattr("backend.app.generate", generate)
+    message = "Сколько пользователей можно подключить на тарифе Старт?"
+
+    retrieved = client.post("/api/retrieve", json={"message": message, "ui_lang": "ru"})
+    assisted = client.post(
+        "/api/assist",
+        json={"message": message, "ui_lang": "ru", "history": [], "deal": {}},
+    )
+    assert retrieved.status_code == 200 and assisted.status_code == 200
+
+    r, a = retrieved.json(), assisted.json()
+    assert a["retrieval"]["threshold"] == r["threshold"]
+    assert a["retrieval"]["matches"] == r["matches"]
+    assert a["grounded"] == r["grounded"]
+    assert a["detected_lang"] == r["detected_lang"]
+
+    from backend.retriever import get_retriever as original
+
+    calls = {"n": 0}
+
+    def spy():
+        calls["n"] += 1
+        return original()
+
+    import backend.app as app_module
+
+    monkeypatch.setattr(app_module, "get_retriever", spy)
+    client.post("/api/retrieve", json={"message": message, "ui_lang": "ru"})
+    client.post(
+        "/api/assist",
+        json={"message": message, "ui_lang": "ru", "history": [], "deal": {}},
+    )
+    assert calls["n"] == 2

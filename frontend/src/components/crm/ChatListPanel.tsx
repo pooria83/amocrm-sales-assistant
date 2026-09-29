@@ -6,11 +6,18 @@ import type { Scenario } from '@/data/scenarios'
 export interface ChatListPanelProps {
   scenarios: Scenario[]
   previews: Record<string, string>
+  unread: Record<string, boolean>
   selectedId: string
   onSelect: (id: string) => void
 }
 
-export function ChatListPanel({ scenarios, previews, selectedId, onSelect }: ChatListPanelProps) {
+export function ChatListPanel({
+  scenarios,
+  previews,
+  unread,
+  selectedId,
+  onSelect,
+}: ChatListPanelProps) {
   const { t } = useI18n()
   return (
     <aside
@@ -29,7 +36,7 @@ export function ChatListPanel({ scenarios, previews, selectedId, onSelect }: Cha
             name={scenario.contact}
             preview={previews[scenario.id] ?? ''}
             channel={scenario.deal.channel}
-            unread={scenario.unread && scenario.id !== selectedId}
+            unread={Boolean(unread[scenario.id])}
             selected={scenario.id === selectedId}
             onSelect={onSelect}
           />

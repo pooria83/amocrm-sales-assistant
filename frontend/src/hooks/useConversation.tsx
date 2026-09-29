@@ -21,6 +21,7 @@ export interface ChatSession {
 export interface ConversationState {
   sessions: Record<string, ChatSession>
   selectedId: string
+  visited: string[]
 }
 
 export type ConversationAction =
@@ -60,7 +61,13 @@ export function conversationReducer(
 
   switch (action.type) {
     case 'select':
-      return { ...state, selectedId: action.id }
+      return {
+        ...state,
+        selectedId: action.id,
+        visited: state.visited.includes(action.id)
+          ? state.visited
+          : [...state.visited, action.id],
+      }
     case 'retrieve_started':
       return update({ status: 'retrieving', retrieval: null, result: null })
     case 'retrieve_done':
@@ -95,6 +102,7 @@ export function conversationReducer(
 const initialState: ConversationState = {
   sessions: initialSessions(),
   selectedId: SCENARIOS[0].id,
+  visited: [SCENARIOS[0].id],
 }
 
 interface ConversationValue {

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { AssistantBadges } from '@/components/assistant/AssistantBadges'
 import { CustomerReplyCard } from '@/components/assistant/CustomerReplyCard'
 import { ErrorState } from '@/components/assistant/ErrorState'
@@ -18,6 +19,17 @@ export function AssistantPanel() {
   const { t } = useI18n()
   const { retrieval, result, status } = session
   const id = scenario.id
+  const rootRef = useRef<HTMLElement>(null)
+
+  // When the reply arrives, reveal it and the hints (they sit below the fold
+  // on shorter screens) — but only if the panel actually overflows.
+  useEffect(() => {
+    if (status !== 'done') return
+    const el = rootRef.current
+    if (el && el.scrollHeight > el.clientHeight + 4) {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    }
+  }, [status])
 
   const titles: Record<string, string> = {}
   for (const match of retrieval?.matches ?? []) titles[match.id] = match.title
@@ -27,8 +39,9 @@ export function AssistantPanel() {
 
   return (
     <section
+      ref={rootRef}
       data-testid="assistant-panel"
-      className="max-h-[46%] shrink-0 space-y-3 overflow-y-auto border-t border-[#e1e5ea] bg-[#fafbfc] px-4 py-3"
+      className="max-h-[62%] shrink-0 space-y-3 overflow-y-auto border-t border-[#e1e5ea] bg-[#fafbfc] px-4 py-3"
     >
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-[#8a96a3]">

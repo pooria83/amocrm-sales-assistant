@@ -9,9 +9,13 @@ export function CrmLayout() {
   const selected = scenarios.find((s) => s.id === state.selectedId) ?? scenarios[0]
 
   const previews: Record<string, string> = {}
+  const unread: Record<string, boolean> = {}
   for (const scenario of scenarios) {
     const messages = state.sessions[scenario.id]?.messages ?? []
-    previews[scenario.id] = messages.length > 0 ? messages[messages.length - 1].text : ''
+    const visible = messages.filter((message) => message.role !== 'note')
+    const last = visible.length > 0 ? visible[visible.length - 1] : messages[0]
+    previews[scenario.id] = last ? last.text : ''
+    unread[scenario.id] = scenario.unread && !state.visited.includes(scenario.id)
   }
 
   return (
@@ -22,6 +26,7 @@ export function CrmLayout() {
       <ChatListPanel
         scenarios={scenarios}
         previews={previews}
+        unread={unread}
         selectedId={state.selectedId}
         onSelect={(id) => dispatch({ type: 'select', id })}
       />

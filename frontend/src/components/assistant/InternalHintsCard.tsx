@@ -56,6 +56,14 @@ export function InternalHintsCard({ hints, onAddNote }: InternalHintsCardProps) 
             ))}
           </ul>
         )}
+        {hints.notes && (
+          <p
+            data-testid="hint-notes"
+            className="rounded-md border border-dashed border-[#e3cf96] bg-white/60 p-2.5 text-xs leading-relaxed text-[#6b5b2a]"
+          >
+            {hints.notes}
+          </p>
+        )}
         {hasContent && (
           <div className="flex justify-end pt-1">
             <Button

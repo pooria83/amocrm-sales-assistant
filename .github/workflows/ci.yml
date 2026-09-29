@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — ruff, pytest, eval
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run pytest
+      # Retrieval eval doubles as the BM25 threshold calibration gate (§8):
+      # exits 1 if grounded accuracy < 100%.
+      - run: uv run python eval/run_eval.py
+
+  frontend:
+    name: Frontend — lint, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  docker:
+    name: Docker — build + smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Both containers must reach "healthy" (backend healthcheck hits
+      # /api/health, frontend healthcheck hits it through the nginx proxy).
+      # Ollama is NOT available in CI — /api/health reports "unreachable"
+      # but still returns HTTP 200, which is exactly what we assert here.
+      - run: docker compose up --build -d --wait --wait-timeout 300
+      - name: Assert health through the nginx proxy
+        run: |
+          python3 -c "
+          import json, urllib.request
+          d = json.load(urllib.request.urlopen('http://localhost:8000/api/health'))
+          assert d['status'] == 'ok', d
+          assert d['kb_entries'] == 21, d
+          print(d)
+          "
+      - name: Assert the React build is served
+        run: curl -fsS http://localhost:8000/ | grep -q 'id="root"'
+      - name: Container logs
+        if: failure()
+        run: docker compose logs backend frontend
+      - name: Down
+        if: always()
+        run: docker compose down --remove-orphans

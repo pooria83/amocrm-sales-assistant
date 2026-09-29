@@ -5,8 +5,14 @@ import pytest
 from backend.kb import KbEntry, KbError, load_kb
 
 
-def test_empty_kb_is_valid() -> None:
-    assert load_kb() == []
+def test_kb_loads_and_contains_plan_entries() -> None:
+    entries = load_kb()
+    ids = [e.id for e in entries]
+    for expected in ["plan-start", "plan-business", "plan-enterprise", "limit-seats"]:
+        assert expected in ids
+    start = next(e for e in entries if e.id == "plan-start")
+    assert start.facts["max_users"] == 5
+    assert start.upsell_to == ["plan-business"]
 
 
 def test_duplicate_ids_rejected(tmp_path) -> None:

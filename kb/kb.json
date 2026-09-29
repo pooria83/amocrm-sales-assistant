@@ -1,3 +1,112 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "id": "plan-start",
+      "type": "plan",
+      "title": { "ru": "Тариф «Старт»", "en": "Start plan" },
+      "text": {
+        "ru": "Тариф «Старт»: 990 ₽ за пользователя в месяц, до 5 пользователей. Включает общую входящую (shared inbox), воронку сделок и интеграцию с Telegram.",
+        "en": "The Start plan: 990 RUB per user per month, up to 5 users. It includes a shared inbox, a deal pipeline and Telegram integration."
+      },
+      "keywords": {
+        "ru": ["тариф", "старт", "план", "подписка", "цена", "сколько", "пользователи", "сотрудники", "места", "лимит"],
+        "en": ["plan", "start", "pricing", "price", "cost", "users", "seats", "limit", "how many"]
+      },
+      "facts": { "price_rub_per_user_month": 990, "max_users": 5 },
+      "upsell_to": ["plan-business"],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": ["seats_near_limit"]
+    },
+    {
+      "id": "plan-business",
+      "type": "plan",
+      "title": { "ru": "Тариф «Бизнес»", "en": "Business plan" },
+      "text": {
+        "ru": "Тариф «Бизнес»: 1 990 ₽ за пользователя в месяц, до 50 пользователей. Добавляет правила автоматизации, интеграции с WhatsApp и 1С, а также REST API.",
+        "en": "The Business plan: 1,990 RUB per user per month, up to 50 users. It adds automation rules, WhatsApp and 1C integrations, and a REST API."
+      },
+      "keywords": {
+        "ru": ["тариф", "бизнес", "план", "подписка", "цена", "автоматизация", "api", "whatsapp", "1с", "пользователи"],
+        "en": ["plan", "business", "pricing", "price", "automation", "api", "whatsapp", "1c", "users"]
+      },
+      "facts": { "price_rub_per_user_month": 1990, "max_users": 50 },
+      "upsell_to": ["plan-enterprise"],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "plan-enterprise",
+      "type": "plan",
+      "title": { "ru": "Тариф «Энтерпрайз»", "en": "Enterprise plan" },
+      "text": {
+        "ru": "Тариф «Энтерпрайз» — для команд от 50 пользователей, цена рассчитывается индивидуально. Включает SSO, персонального менеджера и SLA на доступность 99,9%.",
+        "en": "The Enterprise plan is for teams of 50+ users; the price is quoted on request. It includes SSO, a dedicated manager and a 99.9% uptime SLA."
+      },
+      "keywords": {
+        "ru": ["тариф", "энтерпрайз", "крупная", "команда", "sso", "sla", "менеджер", "пользователи", "цена"],
+        "en": ["plan", "enterprise", "sso", "sla", "dedicated manager", "uptime", "users", "price"]
+      },
+      "facts": { "min_users": 50, "uptime_percent": 99.9 },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "limit-seats",
+      "type": "limit",
+      "title": { "ru": "Лимит пользователей", "en": "Seat limit" },
+      "text": {
+        "ru": "На каждом тарифе есть лимит пользователей: «Старт» — до 5, «Бизнес» — до 50. Чтобы подключить больше сотрудников, чем позволяет тариф, нужно перейти на следующий тариф.",
+        "en": "Every plan has a seat limit: Start up to 5 users, Business up to 50. To add more employees than the plan allows, you need to move to the next plan."
+      },
+      "keywords": {
+        "ru": ["лимит", "пользователи", "сотрудники", "места", "сколько", "подключить", "больше", "превышение", "перейти"],
+        "en": ["limit", "seats", "users", "employees", "how many", "add more", "exceed", "upgrade", "next plan"]
+      },
+      "facts": {},
+      "upsell_to": ["plan-business"],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": ["seats_near_limit"]
+    },
+    {
+      "id": "billing-cycles",
+      "type": "faq",
+      "title": { "ru": "Оплата и скидка за год", "en": "Billing and annual discount" },
+      "text": {
+        "ru": "Подписку можно оплачивать помесячно или за год. При оплате за год действует скидка 20%.",
+        "en": "You can pay for the subscription monthly or annually. Annual billing comes with a 20% discount."
+      },
+      "keywords": {
+        "ru": ["оплата", "счёт", "скидка", "годовая", "помесячно", "разово", "цена", "дешевле", "акция"],
+        "en": ["billing", "payment", "discount", "annual", "yearly", "monthly", "cheaper", "price"]
+      },
+      "facts": { "discount_annual_percent": 20 },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    },
+    {
+      "id": "trial",
+      "type": "faq",
+      "title": { "ru": "Пробный период", "en": "Free trial" },
+      "text": {
+        "ru": "Пробный период — 14 дней бесплатно, банковская карта не нужна. В триал включены все функции тарифа «Бизнес».",
+        "en": "The trial lasts 14 days free of charge, no credit card required. It includes all Business plan features."
+      },
+      "keywords": {
+        "ru": ["пробный", "триал", "дни", "бесплатно", "попробовать", "карта", "тест"],
+        "en": ["trial", "free", "days", "test", "try", "credit card"]
+      },
+      "facts": { "trial_days": 14 },
+      "upsell_to": [],
+      "cross_sell": [],
+      "requires": null,
+      "trigger_hints": []
+    }
+  ]
 }

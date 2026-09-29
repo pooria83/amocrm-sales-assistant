@@ -29,7 +29,7 @@ export function ChatListPanel({ scenarios, previews, selectedId, onSelect }: Cha
             name={scenario.contact}
             preview={previews[scenario.id] ?? ''}
             channel={scenario.deal.channel}
-            unread={scenario.unread}
+            unread={scenario.unread && scenario.id !== selectedId}
             selected={scenario.id === selectedId}
             onSelect={onSelect}
           />

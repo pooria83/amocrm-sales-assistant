@@ -7,7 +7,7 @@ export interface AssistantBadgesProps {
   lang: Lang
   langSource: LangSource
   intent: Intent
-  validation: Validation
+  validation?: Validation
 }
 
 export function AssistantBadges({ lang, langSource, intent, validation }: AssistantBadgesProps) {

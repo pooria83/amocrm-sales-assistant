@@ -4,14 +4,14 @@ import type { Validation } from '@/lib/types'
 import { useI18n } from '@/i18n'
 
 export interface ValidationBadgeProps {
-  validation: Validation
+  validation?: Validation
 }
 
 // Shows the "✓ Numbers verified" badge only when the numbers really went
 // through the guardrail on an LLM reply (not on a template fallback).
 export function ValidationBadge({ validation }: ValidationBadgeProps) {
   const { t } = useI18n()
-  if (validation.fallback_used || !validation.numbers_ok) return null
+  if (!validation || validation.fallback_used || !validation.numbers_ok) return null
   return (
     <Badge
       data-testid="badge-numbers"

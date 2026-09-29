@@ -74,7 +74,9 @@ def tokenize(text: str) -> list[str]:
 DEFAULT_K1 = 1.5
 DEFAULT_B = 0.75
 DEFAULT_TOP_K = 3
-DEFAULT_THRESHOLD = 3.0
+# Calibrated on eval/cases.yaml: lowest should-match score 2.74 (typo case),
+# no-match cases score 0 → threshold 2.5. See README for the margin table.
+DEFAULT_THRESHOLD = 2.5
 
 
 def get_threshold() -> float:

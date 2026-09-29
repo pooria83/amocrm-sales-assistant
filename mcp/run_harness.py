@@ -29,6 +29,12 @@ from mcp.client.stdio import stdio_client
 from mcp import ClientSession, StdioServerParameters
 
 ROOT = Path(__file__).resolve().parent.parent
+# Response invariants live with the backend so they share the exact validator
+# code (sys.path insert AFTER the mcp imports above — our local mcp/ dir must
+# not shadow the installed SDK, and the regular package wins anyway).
+sys.path.insert(0, str(ROOT))
+from backend.invariants import evaluate_invariants  # noqa: E402
+
 SERVER_PATH = ROOT / "mcp" / "server.py"
 DEFAULT_CASES = ROOT / "mcp" / "cases.yaml"
 
@@ -137,7 +143,8 @@ def evaluate_expectations(
     fallback = validation["fallback_used"]
 
     if not fallback:
-        for flag in ("schema_ok", "language_ok", "no_leakage", "numbers_ok", "capacity_ok"):
+        for flag in ("schema_ok", "language_ok", "no_leakage", "numbers_ok", "capacity_ok",
+                     "script_ok", "role_ok"):
             add(checks, f"validation.{flag}", validation[flag] is True, True, validation[flag])
     add(checks, "reply.lang == detected_lang", reply["lang"] == assist["detected_lang"],
         assist["detected_lang"], reply["lang"])
@@ -176,6 +183,9 @@ def evaluate_expectations(
     folded = text.casefold()
     for needle in expect.get("contains", []):
         add(checks, f"contains {needle!r}", needle.casefold() in folded, needle, text)
+    for needle in expect.get("forbid_contains", []):
+        add(checks, f"forbid_contains {needle!r}", needle.casefold() not in folded,
+            "absent", needle if needle.casefold() in folded else None)
     for group in expect.get("contains_any", []):
         hit = next((n for n in group if n.casefold() in folded), None)
         add(checks, f"contains_any {group}", hit is not None, group, hit)
@@ -290,10 +300,15 @@ def build_report(config: dict[str, Any], results: list[dict[str, Any]]) -> str:
             "",
             "> " + assist["customer_reply"]["text"].replace("\n", "\n> "),
             "",
+            f"- **Timing:** retrieve {v.get('retrieve_ms', 0)} ms · "
+            f"prompt {v.get('prompt_ms', 0)} ms · "
+            f"llm {v.get('llm_ms', [])} ms · validate {v.get('validate_ms', 0)} ms",
             f"- **Validation:** schema={'✓' if v['schema_ok'] else '✗'} "
             f"language={'✓' if v['language_ok'] else '✗'} "
             f"numbers={'✓' if v['numbers_ok'] else '✗'} "
             f"capacity={'✓' if v['capacity_ok'] else '✗'} "
+            f"script={'✓' if v.get('script_ok') else '✗'} "
+            f"role={'✓' if v.get('role_ok') else '✗'} "
             f"leakage={'✓' if v['no_leakage'] else '✗'}",
         ]
         hints = assist["internal_sales_hints"]
@@ -372,6 +387,12 @@ async def run(args: argparse.Namespace) -> int:
                         expect = dict(case.get("expect") or {})
                         checks, metrics = evaluate_expectations(
                             expect, retrieve, assist, case.get("ui_lang", "ru")
+                        )
+                        checks += evaluate_invariants(
+                            {"message": case["message"],
+                             "ui_lang": case.get("ui_lang", "ru"),
+                             "deal": case.get("deal") or {}},
+                            retrieve, assist,
                         )
                         record["checks"] = checks
                         record["metrics"] = metrics

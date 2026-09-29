@@ -153,13 +153,14 @@ cases:
   - id: ru21_typo_tarfy
     category: morphology
     message: "тарфи для 10 сотрудников"
-    # Hardened behaviour (2026-09-29 review): this typo message only retrieves
-    # plan-start (990 ₽), which does not fit a 10-employee ask — the numeric +
-    # plan-capacity guardrails reject the wrong plan/price pair, the model
-    # retries once and the honest template fallback is returned. A wrong price
-    # must never reach the customer; fallback here is the correct outcome.
+    # Hardened behaviour, updated 2026-09-29 (capacity-passage change): the
+    # typo retrieves limit-seats/plan-start, the capacity passage supplies the
+    # fitting plan's facts, and the model answers correctly ("Для 10
+    # сотрудников подойдёт тариф «Бизнес»…") — no fallback. Before the
+    # capacity passage this case fell back after a wrong plan/price pair;
+    # that was the old expected outcome, not the current one.
     expect: {lang: ru, grounded: true, intent: limits, ids: [limit-seats, plan-start],
-             upsell: [], cross_sell: [], fallback: true}
+             upsell: [], cross_sell: [], fallback: false}
 
   - id: ru22_tarify_plural
     category: morphology
@@ -720,4 +721,36 @@ cases:
     category: mixed
     message: "В тарифе Старт есть общая входящая?"
     expect: {lang: ru, grounded: true, intent: other, ids: [plan-start],
-             contains_any: [["входящ", "inbox"]], upsell: [], cross_sell: [], fallback: false}
+             contains_any: [["ящик", "входящ", "inbox"]], upsell: [], cross_sell: [], fallback: false}
+
+  - id: x15_reports_addon_only
+    category: rules
+    # ru18 regression: the model used to claim reports were "available on the
+    # Business plan and above" — the KB wording now makes add-on-only explicit
+    # and the reply must reflect it (no plan-inclusive phrasing).
+    message: "Входят ли отчёты по менеджерам в тариф?"
+    deal: {plan: business, seats_used: 12, seat_limit: 50, stage: client}
+    expect: {lang: ru, grounded: true, intent: reporting, ids: [addon-analytics],
+             contains_any: [["не входит", "не входят"], ["дополнени"]],
+             forbid_contains: ["и выше доступны отчёты"],
+             upsell: [], cross_sell: [addon-analytics], fallback: false}
+
+  - id: nm03_pricing_template_ru
+    category: no-match
+    # Task A: ungrounded pricing question → facts-only plan list from the KB,
+    # no LLM, no invented discounts.
+    message: "Сколько стоит?"
+    expect: {lang: ru, grounded: false, intent: pricing, fallback: true,
+             contains_numbers: ["990", "1990"],
+             contains: ["Старт", "Бизнес"],
+             notes_contains: "команде решений",
+             upsell: [], cross_sell: []}
+
+  - id: nm04_pricing_template_en
+    category: no-match
+    message: "Price?"
+    ui_lang: en
+    expect: {lang: en, grounded: false, intent: pricing, fallback: true,
+             contains_numbers: ["990", "1990"],
+             notes_contains: "No KB answer",
+             upsell: [], cross_sell: []}

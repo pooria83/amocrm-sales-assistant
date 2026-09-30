@@ -6,7 +6,7 @@ __pycache__/
 node_modules/
 frontend/dist/
 .env
-# video build workspace (scripts, assets, takes, renders) — final cut lives in release/
+# video build workspace (scripts, assets, takes, renders) — final cut lives in demo/
 video/
 demo/videos/
 mcp/out/
@@ -14,5 +14,5 @@ mcp/RESULTS.md
 *.aiff
 *.mp4
 *.webm
-!release/*.mp4
+!demo/*.mp4
 .DS_Store

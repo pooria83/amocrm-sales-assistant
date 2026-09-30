@@ -1,4 +1,5 @@
-.PHONY: up down logs warmup test lint eval demo demo-setup demo-test mcp script-check verify
+.PHONY: up down logs warmup test lint eval demo demo-setup demo-test mcp script-check verify \
+	video video-record video-narration video-assemble video-verify
 
 up:
 	docker compose up --build -d
@@ -46,3 +47,32 @@ mcp:
 verify: lint script-check test
 	npm --prefix frontend run build
 	uv run python eval/run_eval.py
+
+# ---- video pipeline (VIDEO_PROMPT §20) ----
+# Prerequisites: app up (make up), host Ollama with qwen2.5:7b, ffmpeg, uv.
+video-record:
+	@curl -sf http://localhost:8000/api/health >/dev/null || (echo "app not on :8000 — run make up" && exit 1)
+	@curl -sf http://localhost:11434/api/tags | grep -q "qwen2.5:7b" || (echo "qwen2.5:7b missing in Ollama" && exit 1)
+	@$(MAKE) warmup
+	uv run python demo/run_demo.py --takes 2
+
+video-narration:
+	uv run python video/scripts/tts.py
+
+video-assemble:
+	uv run python video/scripts/assemble.py
+
+# verification first (fail stops make), then the §19 manifest
+video-verify:
+	uv run python video/scripts/verify.py
+	uv run python video/scripts/manifest.py
+
+video:
+	@command -v ffmpeg >/dev/null || (echo "ffmpeg missing" && exit 1)
+	@command -v ffprobe >/dev/null || (echo "ffprobe missing" && exit 1)
+	@test -f video/narration/narration.ru.json || (echo "narration missing" && exit 1)
+	@$(MAKE) video-record
+	@$(MAKE) video-narration
+	@$(MAKE) video-assemble
+	@$(MAKE) video-verify
+	@echo "final video: video/out/amocrm-sales-assistant-demo.mp4"
